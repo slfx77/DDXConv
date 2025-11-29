@@ -1,3 +1,0 @@
-Engine tiling diagnostics - 2025-11-29T15:17:21.0745842Z
-atlas 64x64, blocks 16x16, blockSize=16
-Index,RectIdx,cByteOffsetX,cLineOffsetY,cBytesWide,cLinesHigh,srcStart,srcEnd,dstStart,dstEnd,sumHex

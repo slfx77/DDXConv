@@ -1,7 +1,0 @@
-Engine tiling fallback diagnostics - 2025-11-29T15:17:21.0790302Z
-atlas 64x64, blocks 16x16, blockSize=16
-Index,RectIdx,cByteOffsetX,cLineOffsetY,cBytesWide,cLinesHigh,srcStart,srcEnd,dstStart,dstEnd,sumHex
-3,0,0,0,128,8,0,1023,0,1919,0x0000D213
-3,1,128,16,128,8,1024,2047,1152,3071,0x00012D0A
-3,2,0,0,64,8,2048,2559,0,1855,0x0000947A
-3,3,0,0,64,4,2560,2815,0,831,0x00004F1D
