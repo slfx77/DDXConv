@@ -1,0 +1,2255 @@
+NiXenonShaderDeclaration *__fastcall NiXenonShaderDeclaration::`vector deleting destructor'(NiXenonShaderDeclaration *this, char a2, int a3, int a4, int a5, int a6);
+void __fastcall NiXenonShaderDeclaration::PackUntransformedVB(NiXenonShaderDeclaration *this, NiGeometryData *pkData, NiSkinInstance *pkSkin, NiSkinPartition::Partition *pkPartition, unsigned __int16 usDirtyFlags, NiVBChip *pkOldVBChip, unsigned int uiStream, void *pvLockedBuff);
+void __fastcall NiD3DShaderDeclaration::SetDefaultPackingFunction(unsigned int eType, unsigned int uiAGDType);
+void __fastcall NiXenonRenderTargetGroupData::GetDepthStencilTarget(NiXenonRenderTargetGroupData *this, D3DSurface **aspD3DSurface);
+NiRenderTargetGroup::RendererData *__fastcall NiRenderTargetGroup::RendererData::`scalar deleting destructor'(NiRenderTargetGroup::RendererData *this, char a2, int a3, int a4, int a5, int a6);
+int __fastcall MergeTiles(unsigned int *uiNumTiles, _D3DRECT *kTilingRects, __int64 kTilingRectsToAdd);
+void __fastcall TileFitsInMemory(int iWidth, int iHeight, const TargetsBPPInfo *kTargInfo);
+void __fastcall SplitTile(unsigned int *uiNumTiles, _D3DRECT *kTilingRects, const int iNumberToCutInto, int *iMaxWidth, int *iMaxHeight, const TargetsBPPInfo *kTargInfo);
+void __fastcall NiXenonRenderTargetGroupData::NiXenonRenderTargetGroupData(NiXenonRenderTargetGroupData *this, int a2, int a3, int a4, int a5, int a6, int a7);
+void __fastcall NiXenonRenderTargetGroupData::~NiXenonRenderTargetGroupData(NiXenonRenderTargetGroupData *this, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiXenonRenderTargetGroupData::CreateTarget(unsigned int iWidth, unsigned int iHeight, _D3DFORMAT eFormat, _D3DMULTISAMPLE_TYPE eMultisampleType, _D3DSURFACE_PARAMETERS *kEDRAMSurfaceParams);
+void __fastcall NiXenonRenderTargetGroupData::CreateDepthTarget(unsigned int iWidth, unsigned int iHeight, _D3DFORMAT eFormat, _D3DMULTISAMPLE_TYPE eMultisampleType, _D3DSURFACE_PARAMETERS *kEDRAMSurfaceParams);
+void __fastcall NiXenonRenderTargetGroupData::ValidateRenderTargetGroupData(NiXenonRenderTargetGroupData *this, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiXenonRenderTargetGroupData::ClearRenderTargets(int a1, int a2);
+void __fastcall TargetsBPPInfo::TargetsBPPInfo(TargetsBPPInfo *this, const NiRenderTargetGroup *pkRenderTargetGroup);
+void __fastcall DetermineTiles(unsigned int *uiNumTiles, _D3DRECT *kTilingRects, int *iMaxWidth, int *iMaxHeight, const TargetsBPPInfo *kTargInfo);
+NiXenonRenderTargetGroupData *__fastcall NiXenonRenderTargetGroupData::`vector deleting destructor'(NiXenonRenderTargetGroupData *this, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiXenonRenderTargetGroupData::Create(const NiRenderTargetGroup *pkRenderTargetGroup, int a2);
+void __fastcall NiXenonRenderTargetGroupData::AddDepthStencilRestoreTarget(NiXenonRenderTargetGroupData *this, const NiRenderTargetGroup *pkRenderTargetGroup);
+void __fastcall NiXenonRenderedTextureData::NiXenonRenderedTextureData(NiXenonRenderedTextureData *this, NiRenderedTexture *pkTexture, NiXenonRenderer *pkRenderer);
+void __fastcall NiXenonRenderedTextureData::~NiXenonRenderedTextureData(NiXenonRenderedTextureData *this);
+unsigned int __fastcall NiXenonRenderedTextureData::ComputeAliasSize(NiXenonRenderedTextureData *this);
+void __fastcall NiXenonTextureData::SetD3DTexture(NiXenonTextureData *this, D3DBaseTexture *aTex);
+NiXenonSourceTextureData *__fastcall NiXenonTextureData::GetAsSourceTexture(NiXenonTextureData *this);
+NiXenonDynamicTextureData *__fastcall NiXenonTextureData::GetAsDynamicTexture(NiXenonTextureData *this);
+unsigned int __fastcall NiXenonTextureData::GetLevels(NiXenonTextureData *this);
+int __fastcall NiXenonRenderedTextureData::GetWidth(NiXenonRenderedTextureData *this);
+int __fastcall NiXenonRenderedTextureData::GetHeight(NiXenonRenderedTextureData *this);
+struct NiXenonTextureRenderTarget *__fastcall NiXenonRenderedTextureData::GetTarget(NiXenonRenderedTextureData *this);
+void __fastcall NiXenonRenderedTextureData::Create(NiRenderedTexture *pkTexture, NiXenonRenderer *pkRenderer, Ni2DBuffer::MultiSamplePreference eMSAAPref);
+NiXenonRenderedTextureData *__fastcall NiXenonRenderedTextureData::`vector deleting destructor'(NiXenonRenderedTextureData *this, char a2);
+void __fastcall BSDegradePriority::CalcPriority(unsigned int aiWidth, unsigned int aiHeight, unsigned int aiMipMaps, BSDegradePriority *aPriority);
+void __fastcall NiXenonRenderState::ClearTexture(NiXenonRenderState *this, D3DBaseTexture *pkTexture, int a3, int a4, int a5, int a6, int a7, int a8);
+NiPointer<NiPalette> *__fastcall NiPointer<NiPalette>::operator=(NiPointer<NiPalette> *this, NiPalette *pObject);
+void __fastcall NiXenonSourceTextureData::CreateSurf(NiXenonSourceTextureData *this, const NiPixelData *kPixels);
+void __fastcall NiXenonSourceTextureData::CopyDataToSurfaceLevel(const NiPixelData *kPixels, unsigned int uiLevel, _D3DLOCKED_RECT *kLockRect, _XGTEXTURE_DESC *kTexDesc, _XGTEXTURE_DESC *kSurfDesc, unsigned int uiFace);
+void __fastcall NiXenonSourceTextureData::InitializeFromD3DTexture(NiXenonSourceTextureData *this, D3DBaseTexture *pkD3DTexture);
+BOOL __fastcall NiXenonSourceTextureData::UpdatePalette(NiXenonSourceTextureData *this, NiPalette *pkNewPalette);
+void __fastcall NiXenonSourceTextureData::PostProcessTexture(NiXenonSourceTextureData *apTexture, D3DBaseTexture *apD3DTexture);
+void __fastcall NiXenonSourceTextureData::Degrade(NiXenonSourceTextureData *this, NiTexture *apTexture);
+void __fastcall NiXenonRenderer::ReleaseTexture(D3DBaseTexture *pkTexture, unsigned int aiSize);
+void __fastcall NiXenonSourceTextureData::NiXenonSourceTextureData(NiXenonSourceTextureData *this, NiSourceTexture *pkTexture, NiXenonRenderer *pkRenderer);
+unsigned int __fastcall NiTexture::RendererData::ComputeAliasSize(NiTexture::RendererData *this);
+NiXenonRenderedTextureData *__fastcall NiXenonTextureData::GetAsRenderedTexture(NiXenonTextureData *this);
+NiPalette *__fastcall NiXenonSourceTextureData::GetPalette(NiXenonSourceTextureData *this);
+void __fastcall NiXenonSourceTextureData::~NiXenonSourceTextureData(NiXenonSourceTextureData *this, int a2);
+void __fastcall NiXenonSourceTextureData::CopyDataToSurface(NiXenonSourceTextureData *this, const NiPixelData *kPixels);
+void __fastcall NiXenonSourceTextureData::Update(NiXenonSourceTextureData *this);
+void __fastcall NiXenonSourceTextureData::CreateFromDDSFile(NiXenonSourceTextureData *this, NiFile *apFile, D3DBaseTexture **appTex, NiXenonRenderer *pkRenderer, const NiTexture::FormatPrefs *kPrefs);
+void __fastcall fread2D(char *apDest, NiFile *apSrc, unsigned int aiDestStride, unsigned int aiSrcLength, unsigned int aiDestX, unsigned int aiDestY, unsigned int aiDestWidth);
+int __fastcall NiXenonSourceTextureData::CreateFromDDXFile(NiXenonSourceTextureData *this, const char *apFileName, NiFile *apFile, D3DBaseTexture **appTex, NiRenderer *apRenderer);
+void __fastcall NiXenonSourceTextureData::Upgrade(NiXenonSourceTextureData *this, NiTexture *apTexture, int a3);
+NiXenonSourceTextureData *__fastcall NiXenonSourceTextureData::`scalar deleting destructor'(NiXenonSourceTextureData *this, int a2);
+void __fastcall NiXenonSourceTextureData::LoadTextureFile(NiXenonSourceTextureData *this, const char *pcFilename, NiXenonRenderer *pkRenderer, const NiTexture::FormatPrefs *kPrefs, NiFile *pFile);
+void __fastcall NiXenonSourceTextureData::Create(NiSourceTexture *pkTexture, NiXenonRenderer *pkRenderer);
+NiXenonSourceCubeMapData *__fastcall NiXenonSourceCubeMapData::`scalar deleting destructor'(NiXenonSourceCubeMapData *this, char a2);
+void __fastcall NiXenonSourceCubeMapData::CreateCubeMap(NiXenonSourceCubeMapData *this, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiXenonSourceCubeMapData::CopyDataToCubeMapFace(NiXenonSourceCubeMapData *this, const NiPixelData *kPixels, NiSourceCubeMap::FaceID eFace);
+void __fastcall NiXenonSourceCubeMapData::Create(NiSourceCubeMap *pkTexture, NiXenonRenderer *pkRenderer);
+void __fastcall NiXenonSourceCubeMapData::Update(NiXenonSourceCubeMapData *this, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiXenonRenderedCubeMapData::~NiXenonRenderedCubeMapData(NiXenonRenderedCubeMapData *this);
+struct NiXenonTextureRenderTarget *__fastcall NiXenonRenderedCubeMapData::GetTarget(NiXenonRenderedCubeMapData *this);
+NiXenonRenderedCubeMapData *__fastcall NiXenonRenderedCubeMapData::`scalar deleting destructor'(NiXenonRenderedCubeMapData *this, char a2);
+void __fastcall NiXenonRenderedCubeMapData::Create(NiRenderedCubeMap *pkTexture, NiXenonRenderer *pkRenderer, int a3);
+void __fastcall NiXenonRendererTaskManager::_SDMShutdown(); // idb
+const NiRTTI *__fastcall NiXenonRendererTaskManager::GetRTTI(NiXenonRendererTaskManager *this);
+void __fastcall NiXenonRendererTaskManager::_SDMInit(); // idb
+NiXenonRendererTaskManager *__fastcall NiXenonRendererTaskManager::`vector deleting destructor'(NiXenonRendererTaskManager *this, int a2, int a3, int a4, int a5, int a6, int a7);
+NiTaskManager::ManagerStatus __fastcall NiXenonRendererTaskManager::Stop(NiXenonRendererTaskManager *this);
+NiTask *__fastcall NiTQueue<NiTask *,NiTMallocInterface<NiTask *>>::Remove(NiTQueue<NiTask *,NiTMallocInterface<NiTask *> > *this);
+void __fastcall NiTQueue<NiTask *,NiTMallocInterface<NiTask *>>::Realloc(NiTQueue<NiTask *,NiTMallocInterface<NiTask *> > *this, unsigned int uiNewSize, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiXenonRendererTaskManager::Clear(NiXenonRendererTaskManager *this, int a2);
+void __fastcall NiTQueue<NiTask *,NiTMallocInterface<NiTask *>>::Add(NiTQueue<NiTask *,NiTMallocInterface<NiTask *> > *this, NiTask *element, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiXenonRendererTaskManager::AddTask(NiXenonRendererTaskManager *this, NiTask *pkTask, NiTaskManager::TaskPriority ePriority);
+const NiPixelFormat *__fastcall NiXenonTextureData::FindClosestPixelFormat(const NiTexture::FormatPrefs *kPrefs, NiPixelFormat *const *ppkDestFmts);
+unsigned int __fastcall NiXenonTextureData::GetMip1AllocAddress(NiXenonTextureData *this);
+void __fastcall NiXenonTextureData::NiXenonTextureData(NiXenonTextureData *this, NiTexture *pkTexture, NiXenonRenderer *pkRenderer);
+void __fastcall NiXenonTextureData::~NiXenonTextureData(NiXenonTextureData *this);
+void __fastcall NiXenonTextureData::FindMatchingPixelFormat(NiXenonTextureData *this, const NiPixelFormat *kSrcFmt, const NiTexture::FormatPrefs *kPrefs, NiPixelFormat **ppkDestFmts);
+void __fastcall NiXenonTextureData::ClearTextureData(NiXenonRenderer *pkRenderer);
+int __fastcall NiXenonTextureData::InitializeFromD3DTexture(NiXenonTextureData *this, D3DTexture *pkD3DTexture);
+void __fastcall NiXenonTextureData::DiscardMip1(NiXenonTextureData *this, int a2, int a3);
+NiTexture::RendererData *__fastcall NiTexture::RendererData::`vector deleting destructor'(NiTexture::RendererData *this, char a2);
+NiXenonTextureData *__fastcall NiXenonTextureData::`vector deleting destructor'(NiXenonTextureData *this, char a2);
+int __fastcall NiXenonFragmentShader::IsGenericallyConfigurable(NiXenonFragmentShader *this);
+int __fastcall NiXenonFragmentShader::AppendTextureSampler(NiXenonFragmentShader *this, unsigned int uiPassId, unsigned int *uiSamplerId, const NiFixedString *kSemantic, const NiFixedString *kVariableName, unsigned int uiInstance);
+BOOL __fastcall NiXenonFragmentShader::Initialize(NiXenonFragmentShader *this, NiXenonRenderer *pkRenderer);
+void __fastcall NiXenonFragmentShader::SetupShaderPrograms(NiXenonFragmentShader *this, NiGeometry *pkGeometry, const NiSkinInstance *pkSkin, const NiSkinPartition::Partition *pkPartition, NiGeometryData::RendererData *pkRendererData, const NiPropertyState *pkState, const NiDynamicEffectState *pkEffects, const NiTransform *kWorld, const NiBound *kWorldBound);
+unsigned int __fastcall NiXenonFragmentShader::PostRender(NiXenonFragmentShader *this, NiGeometry *pkGeometry, const NiSkinInstance *pkSkin, const NiSkinPartition::Partition *pkPartition, NiGeometryData::RendererData *pkRendererData, const NiPropertyState *pkState, const NiDynamicEffectState *pkEffects, const NiTransform *kWorld, const NiBound *kWorldBound);
+NiFragmentShaderInstanceDescriptor *__fastcall NiXenonFragmentShader::GetShaderInstanceDesc(NiXenonFragmentShader *this);
+const NiRTTI *__fastcall NiShader::NiShaderInstanceDescriptor::GetRTTI(NiShader::NiShaderInstanceDescriptor *this);
+NiNode *__fastcall NiShader::NiShaderInstanceDescriptor::IsNode(NiShader::NiShaderInstanceDescriptor *this);
+BSFadeNode *__fastcall NiShader::NiShaderInstanceDescriptor::IsFadeNode(NiShader::NiShaderInstanceDescriptor *this);
+BSMultiBoundNode *__fastcall NiShader::NiShaderInstanceDescriptor::IsMultiBoundNode(NiShader::NiShaderInstanceDescriptor *this);
+NiGeometry *__fastcall NiShader::NiShaderInstanceDescriptor::IsGeometry(NiShader::NiShaderInstanceDescriptor *this);
+NiTriBasedGeom *__fastcall NiShader::NiShaderInstanceDescriptor::IsTriBasedGeom(NiShader::NiShaderInstanceDescriptor *this);
+NiTriStrips *__fastcall NiShader::NiShaderInstanceDescriptor::IsTriStrips(NiShader::NiShaderInstanceDescriptor *this);
+NiTriShape *__fastcall NiShader::NiShaderInstanceDescriptor::IsTriShape(NiShader::NiShaderInstanceDescriptor *this);
+BSSegmentedTriShape *__fastcall NiShader::NiShaderInstanceDescriptor::IsSegmentedTriShape(NiShader::NiShaderInstanceDescriptor *this);
+BSResizableTriShape *__fastcall NiShader::NiShaderInstanceDescriptor::IsResizableTriShape(NiShader::NiShaderInstanceDescriptor *this);
+NiParticles *__fastcall NiShader::NiShaderInstanceDescriptor::IsParticlesGeom(NiShader::NiShaderInstanceDescriptor *this);
+NiLines *__fastcall NiShader::NiShaderInstanceDescriptor::IsLinesGeom(NiShader::NiShaderInstanceDescriptor *this);
+bhkNiCollisionObject *__fastcall NiShader::NiShaderInstanceDescriptor::IsBhkNiCollisionObject(NiShader::NiShaderInstanceDescriptor *this);
+bhkBlendCollisionObject *__fastcall NiShader::NiShaderInstanceDescriptor::IsBhkBlendCollisionObject(NiShader::NiShaderInstanceDescriptor *this);
+bhkRigidBody *__fastcall NiShader::NiShaderInstanceDescriptor::IsBhkRigidBody(NiShader::NiShaderInstanceDescriptor *this);
+bhkLimitedHingeConstraint *__fastcall NiShader::NiShaderInstanceDescriptor::IsBhkLimitedHingeConstraint(NiShader::NiShaderInstanceDescriptor *this);
+NiShader::NiShaderInstanceDescriptor *__fastcall NiShader::NiShaderInstanceDescriptor::`scalar deleting destructor'(NiShader::NiShaderInstanceDescriptor *this, char a2, int a3, int a4, int a5, int a6);
+void __fastcall NiD3DPass::SetRenderState(NiD3DPass *this, unsigned int uiRenderState, unsigned int uiValue, bool abSave, int a5, int a6, int a7, int a8);
+NiPointer<NiD3DShaderConstantMap> *__fastcall NiPointer<NiD3DShaderConstantMap>::operator=(NiPointer<NiD3DShaderConstantMap> *this, NiD3DShaderConstantMap *pObject);
+NiPointer<NiD3DPixelShader> *__fastcall NiPointer<NiD3DPixelShader>::operator=(NiPointer<NiD3DPixelShader> *this, NiD3DPixelShader *pObject);
+NiPointer<NiD3DVertexShader> *__fastcall NiPointer<NiD3DVertexShader>::operator=(NiPointer<NiD3DVertexShader> *this, NiD3DVertexShader *pObject);
+NiPointer<NiShaderConstantMapEntry> *__fastcall NiPointer<NiShaderConstantMapEntry>::operator=(NiPointer<NiShaderConstantMapEntry> *this, const NiPointer<NiShaderConstantMapEntry> *ptr);
+NiShaderDeclaration *__fastcall NiXenonFragmentShader::CreateShaderDeclaration(NiXenonFragmentShader *this, unsigned int uiMaxStreamEntryCount, unsigned int uiStreamCount);
+void __fastcall NiXenonFragmentShader::SetAlphaOverride(NiXenonFragmentShader *this, unsigned int uiPassId, bool bAlphaBlend, bool bUsePreviousSrcBlendMode, NiAlphaProperty::AlphaFunction eSrcBlendMode, bool bUsePreviousDestBlendMode, NiAlphaProperty::AlphaFunction eDestBlendMode);
+void __fastcall NiXenonFragmentShader::SetupTransformations(NiXenonFragmentShader *this, NiGeometry *pkGeometry, const NiSkinInstance *pkSkin, const NiSkinPartition::Partition *pkPartition, NiGeometryData::RendererData *pkRendererData, const NiPropertyState *pkState, const NiDynamicEffectState *pkEffects, const NiTransform *kWorld, const NiBound *kWorldBound);
+NiNode *__fastcall NiShader::IsNode(NiShader *this);
+BSFadeNode *__fastcall NiShader::IsFadeNode(NiShader *this);
+BSMultiBoundNode *__fastcall NiShader::IsMultiBoundNode(NiShader *this);
+NiGeometry *__fastcall NiShader::IsGeometry(NiShader *this);
+NiTriBasedGeom *__fastcall NiShader::IsTriBasedGeom(NiShader *this);
+NiTriStrips *__fastcall NiShader::IsTriStrips(NiShader *this);
+NiTriShape *__fastcall NiShader::IsTriShape(NiShader *this);
+BSSegmentedTriShape *__fastcall NiShader::IsSegmentedTriShape(NiShader *this);
+BSResizableTriShape *__fastcall NiShader::IsResizableTriShape(NiShader *this);
+NiParticles *__fastcall NiShader::IsParticlesGeom(NiShader *this);
+NiLines *__fastcall NiShader::IsLinesGeom(NiShader *this);
+bhkNiCollisionObject *__fastcall NiShader::IsBhkNiCollisionObject(NiShader *this);
+bhkBlendCollisionObject *__fastcall NiShader::IsBhkBlendCollisionObject(NiShader *this);
+bhkRigidBody *__fastcall NiShader::IsBhkRigidBody(NiShader *this);
+bhkLimitedHingeConstraint *__fastcall NiShader::IsBhkLimitedHingeConstraint(NiShader *this);
+const NiRTTI *__fastcall NiD3DShader::GetRTTI(NiD3DShader *this);
+NiD3DPass *__fastcall NiD3DShader::GetCurrentPass(NiD3DShader *this);
+NiD3DShader *__fastcall NiD3DShader::`vector deleting destructor'(NiD3DShader *this, int a2);
+int __fastcall NiD3DShader::SetUsesNiRenderState(NiD3DShader *this, bool bUses);
+BOOL __fastcall NiD3DShader::GetIsBestImplementation(NiD3DShader *this);
+void __fastcall NiD3DShader::SetIsBestImplementation(NiD3DShader *this, bool bIsBest);
+NiD3DShaderDeclaration *__fastcall NiD3DShader::DetermineShaderDeclaration(NiD3DShader *this, NiGeometryData *apData);
+NiPointer<NiShaderConstantMapEntry> *__fastcall NiTNewInterface<NiPointer<NiShaderConstantMapEntry>>::Allocate(unsigned int uiNumElements);
+const NiRTTI *__fastcall NiFragmentShaderInstanceDescriptor::GetRTTI(NiFragmentShaderInstanceDescriptor *this);
+NiFragmentShaderInstanceDescriptor *__fastcall NiFragmentShaderInstanceDescriptor::`vector deleting destructor'(NiFragmentShaderInstanceDescriptor *this, char a2, int a3, int a4, int a5, int a6);
+const NiRTTI *__fastcall NiXenonFragmentShader::GetRTTI(NiXenonFragmentShader *this);
+void __fastcall NiXenonFragmentShader::AppendRenderPass(NiXenonFragmentShader *this, unsigned int *uiPassId, int a3, int a4, int a5, int a6, int a7, int a8);
+int __fastcall NiXenonFragmentShader::SetGPUProgram(NiXenonFragmentShader *this, unsigned int uiPassId, NiD3DPixelShader *pkProgram, unsigned int *uiProgramId);
+void __fastcall NiXenonFragmentShader::NiXenonFragmentShader(NiXenonFragmentShader *this, NiMaterialDescriptor *pkDesc);
+NiXenonFragmentShader *__fastcall NiXenonFragmentShader::`scalar deleting destructor'(NiXenonFragmentShader *this, char a2);
+void __fastcall NiTObjectArray<NiPointer<NiShaderConstantMapEntry>>::NiTObjectArray<NiPointer<NiShaderConstantMapEntry>>(NiTObjectArray<NiPointer<NiShaderConstantMapEntry> > *this, unsigned __int16 uiMaxSize, unsigned __int16 uiGrowBy);
+NiTArray<NiPointer<NiShaderConstantMapEntry>,NiTNewInterface<NiPointer<NiShaderConstantMapEntry> > > *__fastcall NiTArray<NiPointer<NiShaderConstantMapEntry>,NiTNewInterface<NiPointer<NiShaderConstantMapEntry>>>::`scalar deleting destructor'(NiTArray<NiPointer<NiShaderConstantMapEntry>,NiTNewInterface<NiPointer<NiShaderConstantMapEntry> > > *this, char a2, int a3, int a4, int a5, int a6, int a7);
+NiTObjectArray<NiPointer<NiShaderConstantMapEntry> > *__fastcall NiTObjectArray<NiPointer<NiShaderConstantMapEntry>>::`vector deleting destructor'(NiTObjectArray<NiPointer<NiShaderConstantMapEntry> > *this, char a2, int a3, int a4, int a5, int a6, int a7);
+const NiRTTI *__fastcall NiD3DShaderConstantMap::GetRTTI(NiD3DShaderConstantMap *this);
+NiNode *__fastcall NiD3DShaderConstantMap::IsNode(NiD3DShaderConstantMap *this);
+BSFadeNode *__fastcall NiD3DShaderConstantMap::IsFadeNode(NiD3DShaderConstantMap *this);
+BSMultiBoundNode *__fastcall NiD3DShaderConstantMap::IsMultiBoundNode(NiD3DShaderConstantMap *this);
+NiGeometry *__fastcall NiD3DShaderConstantMap::IsGeometry(NiD3DShaderConstantMap *this);
+NiTriBasedGeom *__fastcall NiD3DShaderConstantMap::IsTriBasedGeom(NiD3DShaderConstantMap *this);
+NiTriStrips *__fastcall NiD3DShaderConstantMap::IsTriStrips(NiD3DShaderConstantMap *this);
+NiTriShape *__fastcall NiD3DShaderConstantMap::IsTriShape(NiD3DShaderConstantMap *this);
+BSSegmentedTriShape *__fastcall NiD3DShaderConstantMap::IsSegmentedTriShape(NiD3DShaderConstantMap *this);
+BSResizableTriShape *__fastcall NiD3DShaderConstantMap::IsResizableTriShape(NiD3DShaderConstantMap *this);
+NiParticles *__fastcall NiD3DShaderConstantMap::IsParticlesGeom(NiD3DShaderConstantMap *this);
+NiLines *__fastcall NiD3DShaderConstantMap::IsLinesGeom(NiD3DShaderConstantMap *this);
+bhkNiCollisionObject *__fastcall NiD3DShaderConstantMap::IsBhkNiCollisionObject(NiD3DShaderConstantMap *this);
+bhkBlendCollisionObject *__fastcall NiD3DShaderConstantMap::IsBhkBlendCollisionObject(NiD3DShaderConstantMap *this);
+bhkRigidBody *__fastcall NiD3DShaderConstantMap::IsBhkRigidBody(NiD3DShaderConstantMap *this);
+bhkLimitedHingeConstraint *__fastcall NiD3DShaderConstantMap::IsBhkLimitedHingeConstraint(NiD3DShaderConstantMap *this);
+NiD3DShaderConstantMap *__fastcall NiXenonFragmentShader::CreateShaderConstantMap(NiXenonFragmentShader *this, unsigned int uiPassId, unsigned int uiProgramId);
+BOOL __fastcall NiVertexDeclCache::Entry::Matches(NiVertexDeclCache::Entry *this, const _D3DVERTEXELEMENT9 *pakVertexElements);
+void __fastcall NiVertexDeclCache::NiVertexDeclCache(NiVertexDeclCache *this, unsigned int uiNumBuckets, unsigned int uiEntriesPerBucket, unsigned int uiGrowBy, int a5, int a6, int a7, int a8);
+int __fastcall NiVertexDeclCache::HashVertexElements(NiVertexDeclCache *this, const _D3DVERTEXELEMENT9 *pakVertexElements);
+void __fastcall NiVertexDeclCache::~NiVertexDeclCache(NiVertexDeclCache *this, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiVertexDeclCache::GrowHash(NiVertexDeclCache *this, int a2, int a3);
+void __fastcall NiVertexDeclCache::RetrieveVertexDecl(NiVertexDeclCache *this, const _D3DVERTEXELEMENT9 *pakVertexElements, unsigned int uiHashValue, D3DDevice *pkDevice);
+void __fastcall NiVertexDeclCache::CreateVertexDecl(NiVertexDeclCache *this, const _D3DVERTEXELEMENT9 *pakVertexElements, D3DDevice *pkDevice, int a4, int a5, int a6, int a7, int a8);
+char *__fastcall NiXenonErrorString(unsigned int uiErrorCode);
+void __fastcall NiD3DTextureStageGroup::InitializePools(); // idb
+void __fastcall NiD3DTextureStageGroup::ShutdownPools(); // idb
+unsigned int __fastcall NiD3DPass::SetupShaderPrograms(NiD3DPass *this, NiGeometry *pkGeometry, const NiSkinInstance *pkSkin, const NiSkinPartition::Partition *pkPartition, NiGeometryBufferData *pkBuffData, const NiPropertyState *pkState, const NiDynamicEffectState *pkEffects, const NiTransform *kWorld, const NiBound *kWorldBound, unsigned int uiPass);
+BOOL __fastcall NiD3DPass::CheckFreeStages(NiD3DPass *this, unsigned int uiStages, unsigned int uiTextures);
+void __fastcall NiD3DPass::SetMaxTextureBlendStages(unsigned int uiMaxTextureBlendStages);
+void __fastcall NiD3DPass::SetMaxSimultaneousTextures(unsigned int uiMaxSimultaneousTextures);
+void __fastcall NiD3DPass::SetMaxSamplers(unsigned int uiMaxSamplers);
+void __fastcall NiD3DPass::SetupRenderingPass(NiD3DPass *this, NiGeometry *pkGeometry, const NiSkinInstance *pkSkin, NiGeometryBufferData *pkBuffData, const NiPropertyState *pkState, const NiDynamicEffectState *pkEffects, const NiTransform *kWorld, const NiBound *kWorldBound, unsigned int uiPass);
+NiPointer<NiD3DTextureStage> *__fastcall NiPointer<NiD3DTextureStage>::operator=(NiPointer<NiD3DTextureStage> *this, const NiPointer<NiD3DTextureStage> *ptr, int a3, int a4, NiD3DTextureStage *a5, NiD3DTextureStage **a6, int a7);
+void __fastcall NiTSet<NiD3DPass *,NiTMallocInterface<NiD3DPass *>>::Realloc(NiTSet<NiD3DPass *,NiTMallocInterface<NiD3DPass *> > *this, unsigned int uiNewSize, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiD3DPass::SetD3DRenderer(NiXenonRenderer *pkD3DRenderer, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiTArray<NiPointer<NiD3DTextureStage>,NiTNewInterface<NiPointer<NiD3DTextureStage>>>::SetAt(NiTArray<NiPointer<NiD3DTextureStage>,NiTNewInterface<NiPointer<NiD3DTextureStage> > > *this, unsigned int uiIndex, const NiPointer<NiD3DTextureStage> *element);
+void __fastcall NiTArray<NiPointer<NiD3DTextureStage>,NiTNewInterface<NiPointer<NiD3DTextureStage>>>::RemoveAll(NiTArray<NiPointer<NiD3DTextureStage>,NiTNewInterface<NiPointer<NiD3DTextureStage> > > *this, int a2);
+void __fastcall NiTPoolContainer<NiD3DPass,NiTNewInterface<NiD3DPass>>::~NiTPoolContainer<NiD3DPass,NiTNewInterface<NiD3DPass>>(NiTPoolContainer<NiD3DPass,NiTNewInterface<NiD3DPass> > *this, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiTSet<NiD3DPass *,NiTMallocInterface<NiD3DPass *>>::Add(NiTSet<NiD3DPass *,NiTMallocInterface<NiD3DPass *> > *this, NiD3DPass **element, int a3, int a4, int a5, int a6, int a7);
+void __fastcall NiTNewInterface<NiPointer<NiD3DTextureStage>>::Deallocate(NiPointer<NiD3DTextureStage> *pArray, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiTArray<NiPointer<NiD3DTextureStage>,NiTNewInterface<NiPointer<NiD3DTextureStage>>>::SetSize(NiTArray<NiPointer<NiD3DTextureStage>,NiTNewInterface<NiPointer<NiD3DTextureStage> > > *this, unsigned int uiMaxSize, int a3);
+NiTArray<NiPointer<NiD3DTextureStage>,NiTNewInterface<NiPointer<NiD3DTextureStage> > > *__fastcall NiTArray<NiPointer<NiD3DTextureStage>,NiTNewInterface<NiPointer<NiD3DTextureStage>>>::`vector deleting destructor'(NiTArray<NiPointer<NiD3DTextureStage>,NiTNewInterface<NiPointer<NiD3DTextureStage> > > *this, int a2, int a3, int a4, int a5, int a6, int a7);
+void __fastcall NiD3DPass::~NiD3DPass(NiD3DPass *this, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiTObjectArray<NiPointer<NiD3DTextureStage>>::NiTObjectArray<NiPointer<NiD3DTextureStage>>(NiTObjectArray<NiPointer<NiD3DTextureStage> > *this, unsigned __int16 uiMaxSize, unsigned __int16 uiGrowBy);
+void __fastcall NiTPool<NiD3DPass,NiTNewInterface<NiD3DPass>>::ReleaseObject(NiTPool<NiD3DPass,NiTNewInterface<NiD3DPass> > *this, NiD3DPass *pkObject, int a3, int a4, NiD3DPass *a5, NiD3DPass **m_pBase);
+NiTObjectArray<NiPointer<NiD3DTextureStage> > *__fastcall NiTObjectArray<NiPointer<NiD3DTextureStage>>::`scalar deleting destructor'(NiTObjectArray<NiPointer<NiD3DTextureStage> > *this, int a2, int a3, int a4, int a5, int a6, int a7);
+void __fastcall NiD3DPass::`vector deleting destructor'(NiD3DPass *this, unsigned int a2);
+void __fastcall NiD3DPass::NiD3DPass(NiD3DPass *this);
+void __fastcall NiD3DPass::InitializePools(int a1, int a2, int a3);
+void __fastcall NiD3DPass::ReturnPassToPool(NiD3DPass *this);
+void __fastcall NiD3DPass::SetStage(NiD3DPass *this, unsigned int uiStageNum, NiD3DTextureStage *pkStage);
+void __fastcall NiTNewInterface<NiD3DPass>::Allocate(unsigned int uiNumElements, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiD3DPass::ShutdownPools(int a1, int a2);
+NiPointer<NiD3DPass> *__fastcall NiPointer<NiD3DPass>::operator=(NiPointer<NiD3DPass> *this, const NiPointer<NiD3DPass> *ptr);
+void __fastcall NiTPool<NiD3DPass,NiTNewInterface<NiD3DPass>>::CreateNewObjects(NiTPool<NiD3DPass,NiTNewInterface<NiD3DPass> > *this, unsigned int uiSize, int a3);
+void __fastcall NiD3DPass::CreateNewPass(NiPointer<NiD3DPass> *aspD3DPass, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+const char *__fastcall NiD3DGPUProgramCache::GetPlatformSpecificCodeID(NiD3DGPUProgramCache *this);
+const char *__fastcall NiD3DGPUProgramCache::GetPlatform(NiD3DGPUProgramCache *this);
+void NiSprintf(char *pcDest, unsigned int stDestSize, __int64 pcFormat, ...);
+NiPointer<NiGPUProgram> *__fastcall NiPointer<NiGPUProgram>::operator=(NiPointer<NiGPUProgram> *this, NiGPUProgram *pObject);
+NiPointer<NiGPUProgram> *__fastcall NiPointer<NiGPUProgram>::operator=(NiPointer<NiGPUProgram> *this, const NiPointer<NiGPUProgram> *ptr);
+void __fastcall NiStreamSaveBinary<unsigned int>(NiBinaryStream *binstream, unsigned int *value);
+NiPointer<NiMaterialResource> *__fastcall NiPointer<NiMaterialResource>::operator=(NiPointer<NiMaterialResource> *this, const NiPointer<NiMaterialResource> *ptr);
+NiFixedString *__fastcall NiTNewInterface<NiFixedString>::Allocate(unsigned int uiNumElements, int a2, int a3);
+NiPointer<NiGPUProgramCache::NiGPUProgramDesc> *__fastcall NiPointer<NiGPUProgramCache::NiGPUProgramDesc>::operator=(NiPointer<NiGPUProgramCache::NiGPUProgramDesc> *this, const NiPointer<NiGPUProgramCache::NiGPUProgramDesc> *ptr);
+NiFixedString *__fastcall NiFixedString::`vector deleting destructor'(NiFixedString *this, char a2, int a3, int a4, int _R7, int _R8, struct NiParticles *(__fastcall **_R9)(NiObject *__hidden this));
+void __fastcall NiPointer<NiMaterialResource>::`vector deleting destructor'(NiPointer<NiMaterialResource> *this, unsigned int a2);
+int __fastcall NiD3DGPUProgramCache::SaveDebugHLSLFile(NiD3DGPUProgramCache *this, const char *pcFilename, const char *pcProgramText);
+void __fastcall NiTPtrSet<NiPointer<NiMaterialResource>,NiTNewInterface<NiPointer<NiMaterialResource>>>::RemoveAll(NiTPtrSet<NiPointer<NiMaterialResource>,NiTNewInterface<NiPointer<NiMaterialResource> > > *this, int a2);
+void __fastcall NiStreamLoadBinary<unsigned int>(NiBinaryStream *binstream, unsigned int *value);
+void __fastcall NiStreamLoadBinary<unsigned char>(NiBinaryStream *binstream, unsigned __int8 *value, unsigned int uiNumEls);
+void __fastcall NiTFixedStringMapBase<DFALL<NiTMapItem<NiFixedString,NiPointer<NiGPUProgramCache::NiGPUProgramDesc>>>,NiPointer<NiGPUProgramCache::NiGPUProgramDesc>>::SetValue(NiTFixedStringMapBase<DFALL<NiTMapItem<NiFixedString,NiPointer<NiGPUProgramCache::NiGPUProgramDesc> > >,NiPointer<NiGPUProgramCache::NiGPUProgramDesc> > *this, NiTMapItem<NiFixedString,NiPointer<NiGPUProgramCache::NiGPUProgramDesc> > *pkItem, NiFixedString *kKey, NiPointer<NiGPUProgramCache::NiGPUProgramDesc> *val);
+void __fastcall NiD3DGPUProgramCache::SaveGPUProgram(NiD3DGPUProgramCache *this, NiBinaryStream *kStream, NiGPUProgram *pkProgram, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiD3DGPUProgramCache::LoadGPUProgram(NiD3DGPUProgramCache *this, NiBinaryStream *kStream, const NiFixedString *kName, NiGPUProgram **pkProgram, bool bSkip);
+void __fastcall NiTFixedStringMapBase<DFALL<NiTMapItem<NiFixedString,NiPointer<NiGPUProgramCache::NiGPUProgramDesc>>>,NiPointer<NiGPUProgramCache::NiGPUProgramDesc>>::SetAt(NiTFixedStringMapBase<DFALL<NiTMapItem<NiFixedString,NiPointer<NiGPUProgramCache::NiGPUProgramDesc> > >,NiPointer<NiGPUProgramCache::NiGPUProgramDesc> > *this, NiFixedString *kKey, NiPointer<NiGPUProgramCache::NiGPUProgramDesc> *val);
+void __fastcall NiTSet<NiFixedString,NiTNewInterface<NiFixedString>>::Realloc(NiTSet<NiFixedString,NiTNewInterface<NiFixedString> > *this, unsigned int uiNewSize);
+NiPointer<NiMaterialResource> *__fastcall NiTNewInterface<NiPointer<NiMaterialResource>>::Allocate(unsigned int uiNumElements, int a2, int a3);
+void __fastcall NiTSet<NiFixedString,NiTNewInterface<NiFixedString>>::Add(NiTSet<NiFixedString,NiTNewInterface<NiFixedString> > *this, const NiFixedString *element);
+void __fastcall NiTSet<NiPointer<NiMaterialResource>,NiTNewInterface<NiPointer<NiMaterialResource>>>::Realloc(NiTSet<NiPointer<NiMaterialResource>,NiTNewInterface<NiPointer<NiMaterialResource> > > *this, unsigned int uiNewSize);
+void __fastcall NiD3DGPUProgramCache::NiD3DGPUProgramCache(NiD3DGPUProgramCache *this, unsigned int uiVersion, const char *pcWorkingDir, NiGPUProgram::ProgramType eType, const NiFixedString *kShaderProfile, const char *pcMaterialIdentifier, bool bAutoWriteCacheToDisk, bool bWriteDebugHLSLFile, bool bLocked, bool bLoad, int a11, int a12, int a13, int a14, int a15, bool a16, int a17, char a18);
+const NiRTTI *__fastcall NiGPUProgramCache::GetRTTI(NiGPUProgramCache *this);
+NiNode *__fastcall NiGPUProgramCache::IsNode(NiGPUProgramCache *this);
+BSFadeNode *__fastcall NiGPUProgramCache::IsFadeNode(NiGPUProgramCache *this);
+BSMultiBoundNode *__fastcall NiGPUProgramCache::IsMultiBoundNode(NiGPUProgramCache *this);
+NiGeometry *__fastcall NiGPUProgramCache::IsGeometry(NiGPUProgramCache *this);
+NiTriBasedGeom *__fastcall NiGPUProgramCache::IsTriBasedGeom(NiGPUProgramCache *this);
+NiTriStrips *__fastcall NiGPUProgramCache::IsTriStrips(NiGPUProgramCache *this);
+NiTriShape *__fastcall NiGPUProgramCache::IsTriShape(NiGPUProgramCache *this);
+BSSegmentedTriShape *__fastcall NiGPUProgramCache::IsSegmentedTriShape(NiGPUProgramCache *this);
+BSResizableTriShape *__fastcall NiGPUProgramCache::IsResizableTriShape(NiGPUProgramCache *this);
+NiParticles *__fastcall NiGPUProgramCache::IsParticlesGeom(NiGPUProgramCache *this);
+NiLines *__fastcall NiGPUProgramCache::IsLinesGeom(NiGPUProgramCache *this);
+bhkNiCollisionObject *__fastcall NiGPUProgramCache::IsBhkNiCollisionObject(NiGPUProgramCache *this);
+bhkBlendCollisionObject *__fastcall NiGPUProgramCache::IsBhkBlendCollisionObject(NiGPUProgramCache *this);
+bhkRigidBody *__fastcall NiGPUProgramCache::IsBhkRigidBody(NiGPUProgramCache *this);
+bhkLimitedHingeConstraint *__fastcall NiGPUProgramCache::IsBhkLimitedHingeConstraint(NiGPUProgramCache *this);
+NiD3DGPUProgramCache *__fastcall NiD3DGPUProgramCache::`scalar deleting destructor'(NiD3DGPUProgramCache *this, char a2);
+void __fastcall NiTSet<NiPointer<NiMaterialResource>,NiTNewInterface<NiPointer<NiMaterialResource>>>::Add(NiTSet<NiPointer<NiMaterialResource>,NiTNewInterface<NiPointer<NiMaterialResource> > > *this, const NiPointer<NiMaterialResource> *element);
+void __fastcall NiGPUProgramCache::NiGPUProgramDesc::~NiGPUProgramDesc(NiGPUProgramCache::NiGPUProgramDesc *this, int a2);
+NiGPUProgramCache::NiGPUProgramDesc *__fastcall NiGPUProgramCache::NiGPUProgramDesc::`vector deleting destructor'(NiGPUProgramCache::NiGPUProgramDesc *this, int a2);
+void __fastcall NiD3DGPUProgramCache::GenerateProgram(NiD3DGPUProgramCache *this, const char *pcName, const char *pcProgramText, NiTObjectPtrSet<NiPointer<NiMaterialResource> > *kUniforms);
+unsigned int __fastcall NiXenonVertexBufferManager::GetFrameID(NiXenonVertexBufferManager *this);
+void __fastcall NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonVertexBufferManager::NiXenonVBInfo *>::GetNext(NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonVertexBufferManager::NiXenonVBInfo *> *this, NiTMapItem<unsigned int,NiXenonVertexBufferManager::NiXenonVBInfo *> **pos, unsigned int *key, NiXenonVertexBufferManager::NiXenonVBInfo **val);
+void __fastcall NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonVertexBufferManager::NiXenonVBInfo *>::RemoveAll(NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonVertexBufferManager::NiXenonVBInfo *> *this, int a2);
+void __fastcall NiXenonVertexBufferManager::AllocateBufferSpace(NiXenonVertexBufferManager *this, NiGeometryBufferData *pkBuffData, unsigned int uiStream, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiXenonVertexBufferManager::LockVB(NiXenonVertexBufferManager *this, D3DVertexBuffer *pkVB, unsigned int uiOffset, unsigned int uiSize, __int16 uiLockFlags);
+int __fastcall NiXenonVertexBufferManager::UnlockVB(NiXenonVertexBufferManager *this, D3DVertexBuffer *pkVB);
+void __fastcall NiXenonVertexBufferManager::GenerateVertexParameters(NiXenonVertexBufferManager *this, NiGeometryData *pkData, NiSkinPartition::Partition *pkPartition, unsigned int *uiVertexTypeDesc, unsigned int *uiVertexStride, unsigned int *uiPosOffset, unsigned int *uiIndexOffset, unsigned int *uiWeightOffset, unsigned int *uiNormOffset, unsigned int *uiColorOffset, unsigned int *uiTexOffset, _D3DVERTEXELEMENT9 *pakVertexElements, int a13, int a14, int a15, int *a16, int a17, int *a18, int a19, int *a20, int a21, int a22);
+void __fastcall NiXenonVertexBufferManager::PackUntransformedVB(NiXenonVertexBufferManager *this, NiGeometryData *pkData, NiSkinInstance *pkSkin, unsigned __int16 usDirtyFlags, _D3DVERTEXELEMENT9 *pakVertexElements, NiVBChip *pkOldVBChip, void *pvLockedBuff);
+void __fastcall NiXenonVertexBufferManager::PackTransformedVB(NiXenonVertexBufferManager *this, NiGeometryBufferData *pkBuffData, unsigned __int16 usVerts, const NiPoint2 *pkScreenSpaceVerts, const NiColorA *pkColors, NiPoint2 *pkTex, unsigned __int16 usDirtyFlags, _D3DVERTEXELEMENT9 *pakVertexElements, NiVBChip *pkOldVBChip, void *pvLockedBuff, int a11, int a12, int a13, int a14, int a15, NiVBChip *a16, int a17, int a18);
+void __fastcall NiXenonVertexBufferManager::PackSkinnedVB(NiXenonVertexBufferManager *this, NiGeometryData *pkData, const NiSkinInstance *pkSkin, NiSkinPartition::Partition *pkPartition, unsigned __int16 usDirtyFlags, _D3DVERTEXELEMENT9 *pakVertexElements, NiVBChip *pkOldVBChip, void *pvLockedBuff);
+unsigned int __fastcall NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonVertexBufferManager::NiXenonVBInfo *>::KeyToHashIndex(NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonVertexBufferManager::NiXenonVBInfo *> *this, unsigned int key);
+BOOL __fastcall NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonVertexBufferManager::NiXenonVBInfo *>::IsKeysEqual(NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonVertexBufferManager::NiXenonVBInfo *> *this, unsigned int key1, unsigned int key2);
+void __fastcall NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonVertexBufferManager::NiXenonVBInfo *>::SetValue(NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonVertexBufferManager::NiXenonVBInfo *> *this, NiTMapItem<unsigned int,NiXenonVertexBufferManager::NiXenonVBInfo *> *pkItem, unsigned int key, NiXenonVertexBufferManager::NiXenonVBInfo *val);
+void __fastcall NiXenonRenderer::ReleaseVBResource(D3DVertexBuffer *pkResource, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiTPointerMap<unsigned int,NiXenonVertexBufferManager::NiXenonVBInfo *>::DeleteItem(NiTPointerMap<unsigned int,NiXenonVertexBufferManager::NiXenonVBInfo *> *this, NiTMapItem<unsigned int,NiXenonVertexBufferManager::NiXenonVBInfo *> *pkItem, int a3, int a4, int a5, int a6, int a7, int a8);
+NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonVertexBufferManager::NiXenonVBInfo *> *__fastcall NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonVertexBufferManager::NiXenonVBInfo *>::`vector deleting destructor'(NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonVertexBufferManager::NiXenonVBInfo *> *this, int a2);
+NiTPointerMap<unsigned int,NiXenonVertexBufferManager::NiXenonVBInfo *> *__fastcall NiTPointerMap<unsigned int,NiXenonVertexBufferManager::NiXenonVBInfo *>::`scalar deleting destructor'(NiTPointerMap<unsigned int,NiXenonVertexBufferManager::NiXenonVBInfo *> *this, int a2);
+void __fastcall NiXenonVertexBufferManager::~NiXenonVertexBufferManager(NiXenonVertexBufferManager *this, int a2);
+void __fastcall NiTPointerMap<unsigned int,NiXenonVertexBufferManager::NiXenonVBInfo *>::NewItem(NiTPointerMap<unsigned int,NiXenonVertexBufferManager::NiXenonVBInfo *> *this, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiXenonVertexBufferManager::NiXenonVertexBufferManager(NiXenonVertexBufferManager *this, D3DDevice *pkD3DDevice9);
+NiXenonVertexBufferManager *__fastcall NiXenonVertexBufferManager::`scalar deleting destructor'(NiXenonVertexBufferManager *this, int a2);
+void __fastcall NiGeometryBufferData::SetFVF(NiGeometryBufferData *this, unsigned int uiFVF);
+void __fastcall NiGeometryBufferData::SetVertexDeclaration(NiGeometryBufferData *this, D3DVertexDeclaration *hDecl);
+NiGeometryData::RendererData *__fastcall NiGeometryData::RendererData::`scalar deleting destructor'(NiGeometryData::RendererData *this, char a2, int a3, int a4, int a5, int a6);
+unsigned int __fastcall NiGeometryBufferData::ContainsVertexData(NiGeometryBufferData *this, NiShaderDeclaration::ShaderParameter eParameter);
+void __fastcall NiGeometryBufferData::RemoveIB(NiGeometryBufferData *this);
+void __fastcall NiGeometryBufferData::~NiGeometryBufferData(NiGeometryBufferData *this, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+NiGeometryBufferData *__fastcall NiGeometryBufferData::`scalar deleting destructor'(NiGeometryBufferData *this, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+BOOL __fastcall NiXenonDynamicTextureData::IsLocked(NiXenonDynamicTextureData *this);
+void __fastcall NiXenonDynamicTextureData::SetLocked(NiXenonDynamicTextureData *this, bool bTextureLocked);
+D3DBaseTexture *__fastcall NiXenonDynamicTextureData::GetD3DTexture(NiXenonDynamicTextureData *this);
+NiXenonDynamicTextureData *__fastcall NiXenonDynamicTextureData::`vector deleting destructor'(NiXenonDynamicTextureData *this, char a2);
+void __fastcall NiXenonDynamicTextureData::CreateSurf(NiXenonDynamicTextureData *this, const NiDynamicTexture *pkTexture, bool bDynTexturesCap);
+void __fastcall NiXenonDynamicTextureData::Create(NiDynamicTexture *pkTexture, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+int __fastcall NiXenonDeviceReleaseTask::CanExecute(NiXenonDeviceReleaseTask *this);
+void __fastcall NiXenonTextureReleaseTask::DoTask(NiXenonTextureReleaseTask *this);
+void __fastcall NiXenonTextureUpgradeTask::SetClearTextureCallback(void (__cdecl *apCallback)());
+int __fastcall NiXenonVertexShaderReleaseTask::CanExecute(NiXenonVertexShaderReleaseTask *this);
+int __fastcall NiXenonPixelShaderReleaseTask::CanExecute(NiXenonPixelShaderReleaseTask *this);
+void __fastcall NiXenonResourceReleaseTask::DoTask(NiXenonResourceReleaseTask *this, int a2);
+BOOL __fastcall NiXenonResourceReleaseTask::CanExecute(NiXenonResourceReleaseTask *this, int a2);
+int __fastcall NiXenonResourceReleaseTask::Clear(NiXenonResourceReleaseTask *this, int a2);
+void __fastcall NiXenonVBResourceReleaseTask::DoTask(NiXenonVBResourceReleaseTask *this, int a2);
+int __fastcall NiXenonVBResourceReleaseTask::Clear(NiXenonVBResourceReleaseTask *this, int a2);
+void __fastcall NiXenonIBResourceReleaseTask::DoTask(NiXenonIBResourceReleaseTask *this, int a2);
+int __fastcall NiXenonIBResourceReleaseTask::Clear(NiXenonIBResourceReleaseTask *this, int a2);
+void __fastcall NiXenonDeviceReleaseTask::NiXenonDeviceReleaseTask(NiXenonDeviceReleaseTask *this, D3DDevice *pkPointer);
+const NiRTTI *__fastcall NiXenonDeviceReleaseTask::GetRTTI(NiXenonDeviceReleaseTask *this);
+void __fastcall NiXenonDeviceReleaseTask::DoTask(NiXenonDeviceReleaseTask *this, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+int __fastcall NiXenonDeviceReleaseTask::Clear(NiXenonDeviceReleaseTask *this, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiXenonTextureReleaseTask::NiXenonTextureReleaseTask(NiXenonTextureReleaseTask *this, D3DBaseTexture *pkTexture, unsigned int aiSize, int a4, int a5, int a6, int a7, int a8);
+const NiRTTI *__fastcall NiXenonTextureReleaseTask::GetRTTI(NiXenonTextureReleaseTask *this);
+BOOL __fastcall NiXenonTextureReleaseTask::CanExecute(NiXenonTextureReleaseTask *this);
+int __fastcall NiXenonTextureReleaseTask::Clear(NiXenonTextureReleaseTask *this, int a2);
+void __fastcall NiXenonTextureUpgradeTask::NiXenonTextureUpgradeTask(NiXenonTextureUpgradeTask *this, NiTexture *apTexture, D3DBaseTexture *apMip1Texture, int a4, int a5, int a6, int a7, int a8);
+const NiRTTI *__fastcall NiXenonTextureUpgradeTask::GetRTTI(NiXenonTextureUpgradeTask *this);
+void __fastcall NiXenonTextureUpgradeTask::~NiXenonTextureUpgradeTask(NiXenonTextureUpgradeTask *this);
+void __fastcall NiXenonTextureUpgradeTask::DoTask(NiXenonTextureUpgradeTask *this);
+void __fastcall NiXenonTextureUpgradeTask::CanExecute(NiXenonTextureUpgradeTask *this, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiXenonTextureDegradeTask::NiXenonTextureDegradeTask(NiXenonTextureDegradeTask *this, NiTexture *apTexture);
+const NiRTTI *__fastcall NiXenonTextureDegradeTask::GetRTTI(NiXenonTextureDegradeTask *this);
+void __fastcall NiXenonTextureDegradeTask::~NiXenonTextureDegradeTask(NiXenonTextureDegradeTask *this);
+void __fastcall NiXenonTextureDegradeTask::DoTask(NiXenonTextureDegradeTask *this);
+void __fastcall NiXenonTextureDegradeTask::CanExecute(NiXenonTextureDegradeTask *this, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiXenonVertexShaderReleaseTask::NiXenonVertexShaderReleaseTask(NiXenonVertexShaderReleaseTask *this, D3DVertexShader *pkShader);
+const NiRTTI *__fastcall NiXenonVertexShaderReleaseTask::GetRTTI(NiXenonVertexShaderReleaseTask *this);
+void __fastcall NiXenonVertexShaderReleaseTask::DoTask(NiXenonVertexShaderReleaseTask *this, int a2);
+int __fastcall NiXenonVertexShaderReleaseTask::Clear(NiXenonVertexShaderReleaseTask *this, int a2);
+void __fastcall NiXenonPixelShaderReleaseTask::NiXenonPixelShaderReleaseTask(NiXenonPixelShaderReleaseTask *this, D3DPixelShader *pkShader);
+const NiRTTI *__fastcall NiXenonPixelShaderReleaseTask::GetRTTI(NiXenonPixelShaderReleaseTask *this);
+void __fastcall NiXenonPixelShaderReleaseTask::DoTask(NiXenonPixelShaderReleaseTask *this, int a2);
+int __fastcall NiXenonPixelShaderReleaseTask::Clear(NiXenonPixelShaderReleaseTask *this, int a2);
+void __fastcall NiXenonResourceReleaseTask::NiXenonResourceReleaseTask(NiXenonResourceReleaseTask *this, D3DResource *pkPointer);
+const NiRTTI *__fastcall NiXenonResourceReleaseTask::GetRTTI(NiXenonResourceReleaseTask *this);
+NiXenonResourceReleaseTask *__fastcall NiXenonResourceReleaseTask::`scalar deleting destructor'(NiXenonResourceReleaseTask *this, char a2);
+void __fastcall NiXenonVBResourceReleaseTask::NiXenonVBResourceReleaseTask(NiXenonVBResourceReleaseTask *this, D3DVertexBuffer *pkPointer);
+const NiRTTI *__fastcall NiXenonVBResourceReleaseTask::GetRTTI(NiXenonVBResourceReleaseTask *this);
+NiXenonVBResourceReleaseTask *__fastcall NiXenonVBResourceReleaseTask::`scalar deleting destructor'(NiXenonVBResourceReleaseTask *this, char a2);
+void __fastcall NiXenonIBResourceReleaseTask::NiXenonIBResourceReleaseTask(NiXenonIBResourceReleaseTask *this, D3DIndexBuffer *pkPointer);
+const NiRTTI *__fastcall NiXenonIBResourceReleaseTask::GetRTTI(NiXenonIBResourceReleaseTask *this);
+NiXenonIBResourceReleaseTask *__fastcall NiXenonIBResourceReleaseTask::`vector deleting destructor'(NiXenonIBResourceReleaseTask *this, char a2);
+NiXenonDeviceReleaseTask *__fastcall NiXenonDeviceReleaseTask::`vector deleting destructor'(NiXenonDeviceReleaseTask *this, char a2);
+NiXenonTextureReleaseTask *__fastcall NiXenonTextureReleaseTask::`scalar deleting destructor'(NiXenonTextureReleaseTask *this, char a2);
+NiXenonTextureUpgradeTask *__fastcall NiXenonTextureUpgradeTask::`scalar deleting destructor'(NiXenonTextureUpgradeTask *this, char a2);
+NiXenonTextureDegradeTask *__fastcall NiXenonTextureDegradeTask::`vector deleting destructor'(NiXenonTextureDegradeTask *this, char a2);
+NiXenonVertexShaderReleaseTask *__fastcall NiXenonVertexShaderReleaseTask::`scalar deleting destructor'(NiXenonVertexShaderReleaseTask *this, char a2);
+NiXenonPixelShaderReleaseTask *__fastcall NiXenonPixelShaderReleaseTask::`scalar deleting destructor'(NiXenonPixelShaderReleaseTask *this, char a2);
+void __fastcall NiXenonRenderState::SetD3DRenderer(NiXenonRenderState *this, NiXenonRenderer *pkD3DRenderer);
+void __fastcall NiXenonRenderState::ApplyAlpha(NiXenonRenderState *this, const NiAlphaProperty *pkNew);
+void __fastcall NiXenonRenderState::ApplyStencil(NiXenonRenderState *this, const NiStencilProperty *pkNew, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiXenonRenderState::InitRenderState(NiXenonRenderState *this);
+void __fastcall NiXenonRenderState::InitTextureStageState(NiXenonRenderState *this);
+void __fastcall NiXenonRenderState::InitRenderModes(NiXenonRenderState *this);
+void __fastcall NiXenonRenderState::ReadRenderStateCaps(NiXenonRenderState *this);
+NiPointer<NiD3DShaderConstantManager> *__fastcall NiPointer<NiD3DShaderConstantManager>::operator=(NiPointer<NiD3DShaderConstantManager> *this, NiD3DShaderConstantManager *pObject);
+void __fastcall NiXenonRenderState::NiXenonRenderState(NiXenonRenderState *this, NiXenonRenderer *pkRenderer);
+void __fastcall NiXenonRenderState::~NiXenonRenderState(NiXenonRenderState *this);
+void __fastcall NiXenonRenderState::Create(NiXenonRenderer *pkRenderer, bool bZBuffer, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiXenonRenderState::UpdateRenderState(NiXenonRenderState *this, const NiPropertyState *pkNew);
+NiXenonRenderState *__fastcall NiXenonRenderState::`scalar deleting destructor'(NiXenonRenderState *this, char a2);
+void __fastcall NiResolvableDepthStencilBuffer::Create(unsigned int uiWidth, unsigned int uiHeight, NiRenderer *pkRenderer, const NiPixelFormat *kFormat, Ni2DBuffer::MultiSamplePreference eMSAAPref);
+const NiRTTI *__fastcall NiResolvableDepthStencilBuffer::GetRTTI(NiResolvableDepthStencilBuffer *this);
+NiPointer<Ni2DBuffer::RendererData> *__fastcall NiPointer<Ni2DBuffer::RendererData>::operator=(NiPointer<Ni2DBuffer::RendererData> *this, Ni2DBuffer::RendererData *pObject);
+NiResolvableDepthStencilBuffer *__fastcall NiResolvableDepthStencilBuffer::`scalar deleting destructor'(NiResolvableDepthStencilBuffer *this, char a2);
+void __fastcall NiResolvableDepthStencilBuffer::CreateCompatible(Ni2DBuffer *pkBuffer, NiRenderer *apkRenderer, int a3, int a4, int a5, int a6, int a7, int a8);
+int __fastcall NiXenon2DBufferData::GetMSSATypeFromMSAAPref(unsigned int eMSAAPref);
+int __fastcall NiXenonCubeMapBufferData::GetResolveDestination(NiXenonCubeMapBufferData *this, D3DBaseTexture **pkD3DBaseTexture, unsigned int *uiFace);
+const NiRTTI *__fastcall NiXenon2DBufferData::GetRTTI(NiXenon2DBufferData *this);
+NiNode *__fastcall NiXenon2DBufferData::IsNode(NiXenon2DBufferData *this);
+BSFadeNode *__fastcall NiXenon2DBufferData::IsFadeNode(NiXenon2DBufferData *this);
+BSMultiBoundNode *__fastcall NiXenon2DBufferData::IsMultiBoundNode(NiXenon2DBufferData *this);
+NiGeometry *__fastcall NiXenon2DBufferData::IsGeometry(NiXenon2DBufferData *this);
+NiTriBasedGeom *__fastcall NiXenon2DBufferData::IsTriBasedGeom(NiXenon2DBufferData *this);
+NiTriStrips *__fastcall NiXenon2DBufferData::IsTriStrips(NiXenon2DBufferData *this);
+NiTriShape *__fastcall NiXenon2DBufferData::IsTriShape(NiXenon2DBufferData *this);
+BSSegmentedTriShape *__fastcall NiXenon2DBufferData::IsSegmentedTriShape(NiXenon2DBufferData *this);
+BSResizableTriShape *__fastcall NiXenon2DBufferData::IsResizableTriShape(NiXenon2DBufferData *this);
+NiParticles *__fastcall NiXenon2DBufferData::IsParticlesGeom(NiXenon2DBufferData *this);
+NiLines *__fastcall NiXenon2DBufferData::IsLinesGeom(NiXenon2DBufferData *this);
+bhkNiCollisionObject *__fastcall NiXenon2DBufferData::IsBhkNiCollisionObject(NiXenon2DBufferData *this);
+bhkBlendCollisionObject *__fastcall NiXenon2DBufferData::IsBhkBlendCollisionObject(NiXenon2DBufferData *this);
+bhkRigidBody *__fastcall NiXenon2DBufferData::IsBhkRigidBody(NiXenon2DBufferData *this);
+bhkLimitedHingeConstraint *__fastcall NiXenon2DBufferData::IsBhkLimitedHingeConstraint(NiXenon2DBufferData *this);
+int __fastcall NiXenon2DBufferData::CanDisplayFrame(NiXenon2DBufferData *this);
+int __fastcall NiXenon2DBufferData::DisplayFrame(NiXenon2DBufferData *this);
+_D3DMULTISAMPLE_TYPE __fastcall NiXenon2DBufferData::GetMSAAType(NiXenon2DBufferData *this);
+void __fastcall NiXenon2DBufferData::ReleaseReferences(NiXenon2DBufferData *this, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+NiXenonRenderer::TexFormat __fastcall NiXenonTextureBufferData::DetermineTextureFormat(const NiRenderedTexture *pkTexture, NiXenonRenderer::TexUsage eUsage);
+void __fastcall NiXenonCubeMapBufferData::CreateD3DCubeMap(const NiRenderedCubeMap *pkTexture, NiXenonRenderer::TexFormat *eFmt);
+void __fastcall NiXenon2DBufferData::~NiXenon2DBufferData(NiXenon2DBufferData *this, int a2, int a3, int a4, int a5, int a6);
+void __fastcall NiXenonTextureBufferData::Create(D3DDevice *pkD3DDevice9, Ni2DBuffer **pkBuffer, const NiRenderedTexture *pkTexture, Ni2DBuffer::MultiSamplePreference eMSAAPref);
+void __fastcall NiXenonTextureBufferData::ReleaseReferences(NiXenonTextureBufferData *this, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiXenonAdditionalDepthStencilBufferData::~NiXenonAdditionalDepthStencilBufferData(NiXenonAdditionalDepthStencilBufferData *this, int a2);
+void __fastcall NiXenonAdditionalDepthStencilBufferData::Create(D3DDevice *pkD3DDevice9, NiResolvableDepthStencilBuffer **pkBuffer, const NiPixelFormat *pkFormat, Ni2DBuffer::MultiSamplePreference eMSAAPref);
+void __fastcall NiXenonExplicitBuffersData::ReleaseReferences(NiXenonExplicitBuffersData *this);
+NiXenon2DBufferData *__fastcall NiXenon2DBufferData::`vector deleting destructor'(NiXenon2DBufferData *this, int a2, int a3, int a4, int a5, int a6);
+void __fastcall NiXenonTextureBufferData::~NiXenonTextureBufferData(NiXenonTextureBufferData *this, int a2, int a3, int a4, int a5, int a6, int a7);
+NiXenonTextureBufferData *__fastcall NiXenonTextureBufferData::`vector deleting destructor'(NiXenonTextureBufferData *this, int a2, int a3, int a4, int a5, int a6, int a7);
+void __fastcall NiXenonCubeMapBufferData::~NiXenonCubeMapBufferData(NiXenonCubeMapBufferData *this, int a2, int a3, int a4, int a5, int a6, int a7);
+const NiRTTI *__fastcall NiXenonCubeMapBufferData::GetRTTI(NiXenonCubeMapBufferData *this);
+NiXenonCubeMapBufferData *__fastcall NiXenonCubeMapBufferData::`scalar deleting destructor'(NiXenonCubeMapBufferData *this, int a2, int a3, int a4, int a5, int a6, int a7);
+void __fastcall NiXenonCubeMapBufferData::CreateCubeFace(D3DCubeTexture *pkD3DCubeTexture, _D3DCUBEMAP_FACES eFace, D3DDevice *pkD3DDevice9, Ni2DBuffer **pkBuffer);
+const NiRTTI *__fastcall NiXenonExplicitDepthStencilBufferData::GetRTTI(NiXenonExplicitDepthStencilBufferData *this);
+int __fastcall NiXenonExplicitDepthStencilBufferData::GetResolveDestination(NiXenonExplicitDepthStencilBufferData *this, D3DBaseTexture **pkD3DBaseTexture, unsigned int *uiFace);
+NiXenonExplicitDepthStencilBufferData *__fastcall NiXenonExplicitDepthStencilBufferData::`vector deleting destructor'(NiXenonExplicitDepthStencilBufferData *this, int a2, int a3, int a4, int a5, int a6);
+void __fastcall NiXenonExplicitDepthStencilBufferData::Create(D3DDevice *pkD3DDevice9, NiDepthStencilBuffer **pkBuffer, const NiPixelFormat *pkFormat, Ni2DBuffer::MultiSamplePreference eMSAAPref);
+NiXenonAdditionalDepthStencilBufferData *__fastcall NiXenonAdditionalDepthStencilBufferData::`vector deleting destructor'(NiXenonAdditionalDepthStencilBufferData *this, int a2);
+int __fastcall NiXenonExplicitBuffersData::CanDisplayFrame(NiXenonExplicitBuffersData *this);
+void __fastcall NiXenonExplicitBuffersData::Create(const _D3DPRESENT_PARAMETERS_ *kD3DPresentParams, Ni2DBuffer **pkBuffer);
+NiXenonExplicitBuffersData *__fastcall NiXenonExplicitBuffersData::`scalar deleting destructor'(NiXenonExplicitBuffersData *this, char a2);
+void __fastcall NiXenonDirect3DTextureData::Create(NiXenonDirect3DTexture *pkTexture, NiXenonRenderer *pkRenderer, D3DBaseTexture *pkD3DTexture);
+NiXenonDirect3DTextureData *__fastcall NiXenonDirect3DTextureData::`scalar deleting destructor'(NiXenonDirect3DTextureData *this, char a2);
+void __fastcall NiTexture::AddTextureToList(NiTexture *this);
+void __fastcall NiTexture::RemoveTextureFromList(NiTexture *this);
+const NiRTTI *__fastcall NiTexture::GetRTTI(NiTexture *this);
+void __fastcall NiXenonDirect3DTexture::NiXenonDirect3DTexture(NiXenonDirect3DTexture *this);
+const NiRTTI *__fastcall NiXenonDirect3DTexture::GetRTTI(NiXenonDirect3DTexture *this);
+unsigned int __fastcall NiXenonDirect3DTexture::GetWidth(NiXenonDirect3DTexture *this);
+unsigned int __fastcall NiXenonDirect3DTexture::GetHeight(NiXenonDirect3DTexture *this);
+void __fastcall NiXenonDirect3DTexture::Create(NiRenderer *pkRenderer);
+NiTexture *__fastcall NiTexture::`vector deleting destructor'(NiTexture *this, char a2);
+NiXenonDirect3DTexture *__fastcall NiXenonDirect3DTexture::`scalar deleting destructor'(NiXenonDirect3DTexture *this, char a2);
+void __fastcall NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *>::SetAt(NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *> *this, unsigned int key, NiXenonIndexBufferManager::NiXenonIBInfo *val);
+void __fastcall NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *>::GetAt(NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *> *this, unsigned int key, NiXenonIndexBufferManager::NiXenonIBInfo **val);
+void __fastcall NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *>::GetNext(NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *> *this, NiTMapItem<unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *> **pos, unsigned int *key, NiXenonIndexBufferManager::NiXenonIBInfo **val);
+void __fastcall NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *>::RemoveAll(NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *> *this, int a2);
+NiXenonIndexBufferManager::NiXenonIBInfo *__fastcall NiXenonIndexBufferManager::CreateIBInfo(NiXenonIndexBufferManager *this, int a2, int a3);
+void __fastcall NiXenonIndexBufferManager::CreateIndexBuffer(NiXenonIndexBufferManager *this, unsigned int uiLength, unsigned int uiUsage, _D3DFORMAT eFormat, unsigned int ePool, _D3DINDEXBUFFER_DESC *pkDesc);
+unsigned int __fastcall NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *>::KeyToHashIndex(NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *> *this, unsigned int key);
+BOOL __fastcall NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *>::IsKeysEqual(NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *> *this, unsigned int key1, unsigned int key2);
+void __fastcall NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *>::SetValue(NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *> *this, NiTMapItem<unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *> *pkItem, unsigned int key, NiXenonIndexBufferManager::NiXenonIBInfo *val);
+void __fastcall NiTPointerMap<unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *>::DeleteItem(NiTPointerMap<unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *> *this, NiTMapItem<unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *> *pkItem, int a3, int a4, int a5, int a6, int a7, int a8);
+NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *> *__fastcall NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *>::`vector deleting destructor'(NiTMapBase<NiTPointerAllocator<unsigned int>,unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *> *this, int a2);
+NiTPointerMap<unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *> *__fastcall NiTPointerMap<unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *>::`scalar deleting destructor'(NiTPointerMap<unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *> *this, int a2);
+void __fastcall NiXenonIndexBufferManager::~NiXenonIndexBufferManager(NiXenonIndexBufferManager *this, int a2);
+void __fastcall NiXenonIndexBufferManager::PackBuffer(NiXenonIndexBufferManager *this, const unsigned __int16 *pusTriList, unsigned int uiLength, unsigned int uiMaxLength, D3DIndexBuffer *pkOldIB, unsigned int *uiIBSize, unsigned int ePool, unsigned int uiUsage);
+void __fastcall NiXenonIndexBufferManager::ResizeTempPointConnectivity(NiXenonIndexBufferManager *this, unsigned int uiPoints, unsigned int uiMaxPoints, bool bRefill, unsigned int uiUsage, unsigned int ePool);
+void __fastcall NiXenonIndexBufferManager::ResizeTempLineConnectivity(NiXenonIndexBufferManager *this, unsigned int uiPoints, unsigned __int8 *pbFlags, unsigned int *uiConn, D3DIndexBuffer *pkD3DIB9, unsigned int uiUsage, unsigned int ePool);
+void __fastcall NiXenonIndexBufferManager::GetIBInfo(NiXenonIndexBufferManager *this, unsigned int uiUsage, _D3DFORMAT eFormat, unsigned int ePool, int a5, int a6, int a7, int a8);
+void __fastcall NiTPointerMap<unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *>::NewItem(NiTPointerMap<unsigned int,NiXenonIndexBufferManager::NiXenonIBInfo *> *this, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiXenonIndexBufferManager::NiXenonIndexBufferManager(NiXenonIndexBufferManager *this, D3DDevice *pkD3DDevice9);
+NiXenonIndexBufferManager *__fastcall NiXenonIndexBufferManager::`scalar deleting destructor'(NiXenonIndexBufferManager *this, int a2);
+void __fastcall NiXenonIndexBufferManager::GetIndexBuffer(NiXenonIndexBufferManager *this, unsigned int uiLength, unsigned int uiUsage, _D3DFORMAT eFormat, unsigned int ePool);
+void __fastcall NiD3DGeometryGroupManager::SetHWSkinning(NiD3DGeometryGroupManager *this, bool bHWSkinning);
+int __fastcall NiD3DGeometryGroupManager::DestroyGroup(NiD3DGeometryGroupManager *this, NiGeometryGroup *pkGroup);
+BOOL __fastcall NiD3DGeometryGroupManager::IsGroupEmpty(NiD3DGeometryGroupManager *this, NiGeometryGroup *pkGroup);
+int __fastcall NiD3DGeometryGroupManager::AddObjectToGroup(NiD3DGeometryGroupManager *this, NiGeometryGroup *pkGroup, NiScreenTexture *pkScreenTexture);
+int __fastcall NiD3DGeometryGroupManager::RemoveObjectFromGroup(NiD3DGeometryGroupManager *this, NiScreenTexture *pkScreenTexture);
+void __fastcall NiD3DGeometryGroupManager::RemoveSkinPartitionFromGroup(NiD3DGeometryGroupManager *this, NiSkinPartition *pkSkinPartition);
+void __fastcall NiTSet<NiGeometryGroup *,NiTMallocInterface<NiGeometryGroup *>>::Realloc(NiTSet<NiGeometryGroup *,NiTMallocInterface<NiGeometryGroup *> > *this, unsigned int uiNewSize, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiD3DGeometryGroupManager::~NiD3DGeometryGroupManager(NiD3DGeometryGroupManager *this, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiD3DGeometryGroupManager::RemoveObjectFromGroup(NiD3DGeometryGroupManager *this, NiGeometryData *pkData, NiSkinInstance *pkSkinInstance);
+void __fastcall NiTSet<NiGeometryGroup *,NiTMallocInterface<NiGeometryGroup *>>::Add(NiTSet<NiGeometryGroup *,NiTMallocInterface<NiGeometryGroup *> > *this, NiGeometryGroup **element, int a3, int a4, int a5, int a6, int a7);
+NiD3DGeometryGroupManager *__fastcall NiD3DGeometryGroupManager::`scalar deleting destructor'(NiD3DGeometryGroupManager *this, int a2, int a3, int a4, int a5, int a6, int a7, int a8);
+void __fastcall NiD3DGeometryGroupManager::Create(D3DDevice *pkD3DDevice, NiXenonVertexBufferManager *pkVBManager, int a3, int a4, int a5, int a6, int a7, int a8);
+NiUnsharedGeometryGroup *__fastcall NiD3DGeometryGroupManager::CreateGroup(NiD3DGeometryGroupManager *this, unsigned int eBehavior, int a3);
+void __fastcall NiD3DGeometryGroupManager::AddObjectToGroup(NiD3DGeometryGroupManager *this, NiGeometryGroup *pkGroup, NiGeometryData *pkData, NiSkinInstance *pkSkinInstance);
+const NiRTTI *__fastcall NiXenonErrorShader::GetRTTI(NiXenonErrorShader *this);
+NiXenonErrorShader *__fastcall NiXenonErrorShader::`vector deleting destructor'(NiXenonErrorShader *this, int a2);
+void __fastcall NiXenonErrorShader::SetupTransformations(NiXenonErrorShader *this, NiGeometry *pkGeometry, const NiSkinInstance *pkSkin, const NiSkinPartition::Partition *pkPartition, NiGeometryData::RendererData *pkRendererData, const NiPropertyState *pkState, const NiDynamicEffectState *pkEffects, const NiTransform *kWorld, const NiBound *kWorldBound, int a10, int a11, int a12, int a13, int a14, int a15, int a16);
+NiPointer<NiD3DShaderDeclaration> *__fastcall NiPointer<NiD3DShaderDeclaration>::operator=(NiPointer<NiD3DShaderDeclaration> *this, NiD3DShaderDeclaration *pObject);
+        unsigned int aiDestWidth)
+{
+  int v7; // r8
+  int v8; // r7
+  unsigned int v9; // r6
+  unsigned int v10; // r5
+  __int64 v11; // r4
+  int v12; // r31
+  unsigned int v13; // r27
+  unsigned int v14; // r26
+  unsigned int v15; // r9
+  unsigned int v16; // r28
+  unsigned int v17; // r30
+  int v18; // r29
+  int v19; // r3
+  int v20; // [sp+50h] [-50h] BYREF
+
+  v11 = _savegprlr_25(apDest);
+  v12 = v11;
+  v13 = v10;
+  v14 = v9;
+  v16 = v15;
+  if ( v15 < v10 )
+  {
+    v17 = 0;
+    if ( v9 )
+    {
+      v18 = v10 * v7 + HIDWORD(v11) + v8;
+      do
+      {
+        v20 = 1;
+        v19 = (*(int (__fastcall **)(int, int, unsigned int, int *, int))(v12 + 8))(v12, v18, v16, &v20, 1);
+        v17 += v16;
+        v18 += v13;
+        *(_DWORD *)(v12 + 4) += v19;
+      }
+      while ( v17 < v14 );
+    }
+  }
+  JUMPOUT(0x82DAD9AC);
+}
+// 828CB52C: control flows out of bounds to 82DAD9AC
+// 828CB510: variable 'v10' is possibly undefined
+// 828CB514: variable 'v9' is possibly undefined
+// 828CB518: variable 'v15' is possibly undefined
+// 828CB530: variable 'v7' is possibly undefined
+// 828CB544: variable 'v8' is possibly undefined
+// 82DAD95C: using guessed type __int64 __fastcall _savegprlr_25(_DWORD);
+
+//----- (828CB598) --------------------------------------------------------
+int __fastcall NiXenonSourceTextureData::CreateFromDDXFile(
+        NiXenonSourceTextureData *this,
+        const char *apFileName,
+        NiFile *apFile,
+        D3DBaseTexture **appTex,
+        NiRenderer *apRenderer)
+{
+  __int64 v5; // r4
+  D3DTexture **v6; // r6
+  BSDegradePriority *v7; // r30
+  BSSpinLock *v8; // r27
+  const char *v9; // r31
+  NiFile *v10; // r5
+  NiFile *File; // r25
+  D3DCubeTexture **v12; // r29
+  int v13; // r13
+  int v14; // r23
+  void (__cdecl *SetEndianSwap)(struct NiFile *, bool); // ctr
+  char v16; // r11
+  char v17; // r10
+  D3DCubeTexture *v18; // r31
+  void *v19; // r28
+  char v20; // r10
+  unsigned __int8 v21; // r11
+  BSDegradePriority *v22; // r28
+  D3DTexture *v23; // r3
+  D3DTexture *v24; // r20
+  int v25; // r3
+  unsigned int m_uiAbsoluteCurrentPos; // r11
+  char *v27; // r16
+  void *v28; // r14
+  TMB_TYPE v29; // r26
+  bool v30; // r11
+  unsigned int v31; // r18
+  int v32; // r30
+  int v33; // r29
+  unsigned int LevelCount; // r3
+  int v35; // r3
+  int v36; // r18
+  int v37; // r3
+  unsigned int v38; // r31
+  int v39; // r9
+  int v40; // r10
+  unsigned int v41; // r3
+  int v42; // r9
+  void *v43; // r3
+  int v44; // r9
+  char *v45; // r3
+  int v46; // r3
+  int v47; // r31
+  int v48; // r3
+  unsigned int v49; // r31
+  char *v50; // r31
+  char *v51; // r30
+  unsigned int v52; // r29
+  void *DecompressionContext; // r3
+  int v54; // r22
+  int Width; // r31
+  unsigned int v56; // r30
+  unsigned int v57; // r31
+  int v58; // r24
+  unsigned int v59; // r3
+  unsigned int v60; // r9
+  int v61; // r14
+  int v62; // r20
+  unsigned int v63; // r15
+  int v64; // r21
+  int v65; // r23
+  NiXenonSourceTextureData::TextureTileRect *v66; // r11
+  unsigned int cBytesWide; // r30
+  unsigned int v68; // r27
+  unsigned int v69; // r28
+  int cByteOffsetX; // r9
+  char *v71; // r26
+  unsigned int v72; // r31
+  char *v73; // r11
+  char *v74; // r29
+  int v75; // r3
+  unsigned int v76; // r10
+  char *v77; // r31
+  void *v78; // r3
+  unsigned int v79; // r30
+  unsigned int v80; // r31
+  unsigned int v81; // r29
+  unsigned int v82; // r3
+  char *v83; // r4
+  unsigned int v84; // r31
+  char *v85; // r31
+  unsigned int v86; // r30
+  void *v87; // r3
+  char *v88; // r31
+  void *v89; // r3
+  unsigned int v90; // r10
+  char v91; // r11
+  unsigned int v93; // [sp+38h] [-1A8h]
+  D3DTexture *v94; // [sp+3Ch] [-1A4h]
+  unsigned int *v95; // [sp+40h] [-1A0h]
+  unsigned int *v96; // [sp+44h] [-19Ch]
+  unsigned int v97; // [sp+70h] [-170h] BYREF
+  char v98[2]; // [sp+74h] [-16Ch] BYREF
+  __int16 v99; // [sp+76h] [-16Ah] BYREF
+  unsigned int v100; // [sp+78h] [-168h] BYREF
+  D3DTexture *v101; // [sp+7Ch] [-164h]
+  D3DTexture *v102; // [sp+80h] [-160h] BYREF
+  unsigned __int8 v103[4]; // [sp+84h] [-15Ch] BYREF
+  char *v104; // [sp+88h] [-158h]
+  char v105[4]; // [sp+8Ch] [-154h] BYREF
+  unsigned int v106; // [sp+90h] [-150h] BYREF
+  char v107[4]; // [sp+94h] [-14Ch] BYREF
+  D3DTexture *v108; // [sp+98h] [-148h] BYREF
+  int v109; // [sp+9Ch] [-144h]
+  int v110; // [sp+A0h] [-140h]
+  unsigned int v111; // [sp+A4h] [-13Ch]
+  int v112; // [sp+A8h] [-138h] BYREF
+  _D3DSURFACE_DESC v113; // [sp+B0h] [-130h] BYREF
+  int v114; // [sp+D0h] [-110h] BYREF
+  int v115; // [sp+D4h] [-10Ch] BYREF
+  int v116; // [sp+D8h] [-108h] BYREF
+  int v117; // [sp+DCh] [-104h] BYREF
+  _DWORD v118[2]; // [sp+E0h] [-100h] BYREF
+  int v119; // [sp+E8h] [-F8h] BYREF
+  BSSpinLock *v120; // [sp+ECh] [-F4h]
+  int v121; // [sp+F0h] [-F0h] BYREF
+  _DWORD v122[2]; // [sp+F4h] [-ECh] BYREF
+  unsigned __int16 *v123; // [sp+FCh] [-E4h]
+  _D3DSURFACE_DESC v124; // [sp+100h] [-E0h] BYREF
+  _D3DMIPTAIL_DESC v125[5]; // [sp+120h] [-C0h] BYREF
+  BSDegradePriority *sender_toc; // [sp+1F4h] [+14h]
+  D3DTexture **saved_r8; // [sp+20Ch] [+2Ch]
+
+  v5 = _savegprlr(this, apFileName, apFile, appTex, apRenderer);
+  sender_toc = (BSDegradePriority *)HIDWORD(v5);
+  saved_r8 = v6;
+  v7 = (BSDegradePriority *)HIDWORD(v5);
+  v8 = &DDXCreateLock;
+  v9 = (const char *)v5;
+  File = v10;
+  v12 = (D3DCubeTexture **)v6;
+  v120 = &DDXCreateLock;
+  if ( (_S1_31 & 1) == 0 )
+  {
+    DDXCreateLock.uiOwningThread = 0;
+    DDXCreateLock.uiLockCount = 0;
+    _S1_31 |= 1u;
+  }
+  BSSpinLock::Lock(&DDXCreateLock, 0);
+  if ( !File )
+    File = NiFile::GetFile(v9, READ_ONLY, 0x8000u);
+  v14 = *(_DWORD *)(*(_DWORD *)v13 + 716);
+  SetEndianSwap = File->SetEndianSwap;
+  v110 = v14;
+  ((void (__fastcall *)(NiFile *, _DWORD))SetEndianSwap)(File, 0);
+  *v12 = 0;
+  v112 = 0;
+  v114 = 1;
+  File->m_uiAbsoluteCurrentPos += ((int (__fastcall *)(NiFile *, int *, int, int *, int))File->m_pfnRead)(
+                                    File,
+                                    &v112,
+                                    4,
+                                    &v114,
+                                    1);
+  if ( v112 != '3XDO' && v112 != '3XDR' )
+  {
+    if ( v112 == '3XDU' )
+    {
+      NiBinaryStream::Read(File, v98, 1u);
+      NiBinaryStream::Read(File, v105, 1u);
+      v16 = v98[0];
+      v17 = v105[0];
+      HIWORD(v97) = 0;
+      v7[22].cPriorityL = v98[0];
+      v7[22].cPriorityC = v16;
+      v7[22].cPriorityH = v17;
+      v7[22].cPriorityC = v16;
+      NiBinaryStream::Read(File, &v97, 2u);
+      if ( SHIWORD(v97) >= 3 )
+      {
+        v18 = (D3DCubeTexture *)MemoryManager::Allocate(&MemoryManager::s_Instance, 0x34u);
+        NiBinaryStream::Read(File, v18, 0x34u);
+        ((void (__cdecl *)(D3DBaseTexture *))D3DBaseTexture_GetLevelCount)(v18);
+        D3DCubeTexture_GetLevelDesc(v18, 0, &v124);
+        D3DCubeTexture_GetLevelDesc(v18, 1u, &v124);
+        D3DCubeTexture_GetLevelDesc(v18, 2u, &v124);
+        D3DCubeTexture_GetLevelDesc(v18, 3u, &v124);
+        D3DCubeTexture_GetLevelDesc(v18, 4u, &v124);
+        D3DCubeTexture_GetLevelDesc(v18, 5u, &v124);
+        D3DBaseTexture_GetTailDesc(v18, v125);
+        NiBinaryStream::Read(File, &v106, 4u);
+        v109 = 0xBC020000;
+        v19 = XMemAlloc(v106, 0xBC020000);
+        NiBinaryStream::Read(File, v19, v106);
+        XGOffsetResourceAddress(v18, v19);
+        *v12 = v18;
+      }
+    }
+    goto LABEL_147;
+  }
+  v119 = 1;
+  File->m_uiAbsoluteCurrentPos += ((int (__fastcall *)(NiFile *, unsigned __int8 *, int, int *, int))File->m_pfnRead)(
+                                    File,
+                                    v103,
+                                    1,
+                                    &v119,
+                                    1);
+  v122[0] = 1;
+  File->m_uiAbsoluteCurrentPos += ((int (__fastcall *)(NiFile *, char *, int, _DWORD *, int))File->m_pfnRead)(
+                                    File,
+                                    v107,
+                                    1,
+                                    v122,
+                                    1);
+  v20 = v107[0];
+  v21 = v103[0];
+  v7[22].cPriorityL = v103[0];
+  v22 = v7 + 22;
+  v7[22].cPriorityH = v20;
+  v7[22].cPriorityC = v21;
+  v99 = 0;
+  v116 = 1;
+  v7[22].cPriorityC = v21;
+  File->m_uiAbsoluteCurrentPos += ((int (__fastcall *)(NiFile *, __int16 *, int, int *, int))File->m_pfnRead)(
+                                    File,
+                                    &v99,
+                                    2,
+                                    &v116,
+                                    1);
+  if ( v99 < 3 )
+    goto LABEL_147;
+  v23 = (D3DTexture *)MemoryManager::Allocate(&MemoryManager::s_Instance, 0x34u);
+  v121 = 1;
+  v24 = v23;
+  v108 = v23;
+  File->m_uiAbsoluteCurrentPos += ((int (__fastcall *)(NiFile *, D3DTexture *, int, int *, int))File->m_pfnRead)(
+                                    File,
+                                    v23,
+                                    52,
+                                    &v121,
+                                    1);
+  if ( (v24->Format.dword[4] & 0x3C0) == 0 )
+  {
+    LOBYTE(v14) = 3;
+    v110 = 3;
+  }
+  v118[0] = 1;
+  v25 = ((int (__fastcall *)(NiFile *, D3DTexture **, int, _DWORD *, int))File->m_pfnRead)(File, &v102, 4, v118, 1);
+  m_uiAbsoluteCurrentPos = File->m_uiAbsoluteCurrentPos;
+  v27 = 0;
+  v101 = 0;
+  v28 = 0;
+  v104 = 0;
+  v109 = 0;
+  File->m_uiAbsoluteCurrentPos = v25 + m_uiAbsoluteCurrentPos;
+  v29 = BSTexMemHeap::DDSToTMBType(v24->Format.dword[1] & 0x3F);
+  ((void (__cdecl *)(D3DTexture *, unsigned int, _D3DSURFACE_DESC *))D3DTexture_GetLevelDesc)(v24, 0, &v113);
+  if ( v113.Width <= 0x40 && v113.Height <= 0x40 )
+  {
+    LOBYTE(v14) = 3;
+    v110 = 3;
+  }
+  v97 = -1140850688;
+  v30 = ((unsigned int (__cdecl *)(D3DBaseTexture *))D3DBaseTexture_GetLevelCount)(v24) > 1
+     && XGGetMipTailBaseLevel(v113.Width, v113.Height, 0)
+     && (v113.Width > 0x40 || v113.Height > 0x40);
+  v98[0] = 0;
+  if ( !v30 )
+  {
+    LOBYTE(v14) = 3;
+    v110 = 3;
+  }
+  if ( (v14 & 1) == 0 )
+  {
+    v24->Format.dword[4] &= 0xFFFFFC3F;
+    v102 = 0;
+  }
+  v31 = 0;
+  v32 = 0;
+  v100 = 0;
+  v33 = 0;
+  v111 = 0;
+  v106 = 0;
+  if ( v113.Width == v113.Height
+    && v112 != '3XDO'
+    && (v113.Format == D3DFMT_DXT1 || v113.Format == D3DFMT_DXT2 || v113.Format == D3DFMT_DXT4) )
+  {
+    if ( v113.Width > 0x40 )
+    {
+      if ( v113.Width == 128 )
+        v33 = 1;
+    }
+    else
+    {
+      v32 = 1;
+    }
+  }
+  if ( v30 )
+  {
+    LevelCount = ((unsigned int (__cdecl *)(D3DBaseTexture *))D3DBaseTexture_GetLevelCount)(v24);
+    XGSetTextureHeader(v113.Width, v113.Height, LevelCount, 0, v113.Format, 0, 0, 0, v93, v94, v95, v96);
+    if ( v99 >= 4 )
+    {
+      NiBinaryStream::Read(File, &v100, 4u);
+      v35 = ((int (__fastcall *)(NiFile *))File->GetFileSize)(File);
+      v36 = v35 - v100;
+      v37 = ((int (__fastcall *)(NiFile *))File->GetPosition)(File);
+      v38 = v100;
+      v31 = v36 - v37;
+      v111 = v31;
+      if ( !v100 )
+      {
+        v38 = v31;
+        v111 = 0;
+        v100 = v31;
+        v31 = 0;
+      }
+      if ( v38 <= v31 )
+        v38 = v31;
+      if ( v38 > NiXenonSourceTextureData::iCompressedBufferSize )
+      {
+        if ( NiXenonSourceTextureData::pCompressedBuffer )
+          MemoryManager::Deallocate(&MemoryManager::s_Instance, NiXenonSourceTextureData::pCompressedBuffer);
+        NiXenonSourceTextureData::iCompressedBufferSize = v38;
+        NiXenonSourceTextureData::pCompressedBuffer = (char *)MemoryManager::Allocate(&MemoryManager::s_Instance, v38);
+      }
+    }
+    if ( (v110 & 2) == 0 )
+    {
+      if ( v33 )
+      {
+        BYTE1(v97) = 5;
+        v27 = (char *)XMemAlloc((unsigned int)v102, v29 & 0x1FFF | v97 & 0xFFFFE000);
+        v39 = v24->Common | 0x1000000;
+        v104 = v27;
+        v98[0] = 1;
+        v24->Common = v39;
+      }
+      else
+      {
+        BYTE1(v97) = 2;
+        v27 = (char *)XMemAlloc((unsigned int)v102, v97);
+        v40 = v24->Common | 0x2000000;
+        v104 = v27;
+        v98[0] = 1;
+        v24->Common = v40;
+      }
+      goto LABEL_67;
+    }
+    if ( v103[0] == 255 )
+    {
+      v41 = ((unsigned int (__cdecl *)(D3DBaseTexture *))D3DBaseTexture_GetLevelCount)(v24);
+      BSDegradePriority::CalcPriority(v113.Width, v113.Height, v41, v22);
+    }
+    if ( v32 )
+    {
+LABEL_52:
+      BYTE1(v97) = 5;
+      v27 = (char *)XMemAlloc((unsigned int)v102, v29 & 0x1FFF | v97 & 0xFFFFE000);
+      v42 = v24->Common | 0x1000000;
+      v104 = v27;
+      v24->Common = v42;
+      goto LABEL_67;
+    }
+    if ( v22->cPriorityL < 4u )
+    {
+      BYTE1(v97) = 4;
+      v43 = XMemAlloc((unsigned int)v101, v97);
+      v44 = v24->Common | 0x4000000;
+    }
+    else
+    {
+      BYTE1(v97) = 3;
+      v43 = XMemAlloc((unsigned int)v101, v97);
+      v44 = v24->Common | 0x8000000;
+    }
+    v28 = v43;
+    v24->Common = v44;
+    v109 = (int)v43;
+    if ( v102 )
+    {
+      if ( !v33 )
+      {
+        BYTE1(v97) = 2;
+        v27 = (char *)XMemAlloc((unsigned int)v102, v97);
+        v104 = v27;
+        goto LABEL_67;
+      }
+      goto LABEL_52;
+    }
+  }
+  else
+  {
+    if ( v102 )
+    {
+      if ( v32 )
+      {
+        BYTE1(v97) = 5;
+        v45 = (char *)XMemAlloc((unsigned int)v102, v29 & 0x1FFF | v97 & 0xFFFFE000);
+        v24->Common |= 0x1000000u;
+      }
+      else
+      {
+        BYTE1(v97) = 2;
+    goto LABEL_151;
+  }
+LABEL_152:
+  ((void (__fastcall *)(NiFile *, int))File->~NiFile)(File, 1);
+  BSSpinLock::Unlock(v8);
+  return _restgprlr_14(*v12 != 0);
+}
+// 828CB5B0: variable 'v6' is possibly undefined
+// 828CB5C4: variable 'v10' is possibly undefined
+// 828CB628: variable 'v13' is possibly undefined
+// 828CBB0C: variable 'v93' is possibly undefined
+// 828CBB0C: variable 'v94' is possibly undefined
+// 828CBB0C: variable 'v95' is possibly undefined
+// 828CBB0C: variable 'v96' is possibly undefined
+// 82DAD400: using guessed type int __fastcall memcpy(_DWORD, _DWORD, _DWORD);
+// 82DAD930: using guessed type __int64 __fastcall _savegprlr(_DWORD, _DWORD, _DWORD, _DWORD, _DWORD);
+// 82DAD980: using guessed type int __fastcall _restgprlr_14(_DWORD);
+
+//----- (828CC510) --------------------------------------------------------
+void __fastcall NiXenonSourceTextureData::Upgrade(NiXenonSourceTextureData *this, NiTexture *apTexture, int a3)
+{
+  int *v3; // r13
+  NiXenonSourceTextureData *v4; // r3
+  int cState; // r11
+  NiTexture *v6; // r4
+  NiTexture *v7; // r27
+  NiTexture *m_pkTexture; // r29
+  int v9; // r31
+  int v10; // r26
+  int v11; // r10
+  int v12; // r9
+  int v13; // r8
+  int v14; // r7
+  int v15; // r6
+  int v16; // r5
+  D3DBaseTexture *v17; // [sp+50h] [-40h] BYREF
+
+  _savegprlr_26(this, apTexture, a3);
+  cState = v4->DegradePriorityRange.cState;
+  v7 = v6;
+  if ( cState == 3 || cState == 2 )
+  {
+    m_pkTexture = v4->m_pkTexture;
+    v17 = 0;
+    if ( *(_DWORD *)&m_pkTexture[1].m_usExtraDataSize )
+    {
+      v9 = *v3;
+      v4->DegradePriorityRange.cState = 2;
+      v10 = *(_DWORD *)(v9 + 716);
+      *(_DWORD *)(v9 + 716) = 2;
+      v12 = (unsigned __int8)NiXenonSourceTextureData::CreateFromDDXFile(
+                               v4,
+                               0,
+                               *(NiFile **)&m_pkTexture[1].m_usExtraDataSize,
+                               &v17,
+                               NiRenderer::ms_pkRenderer);
+      *(_DWORD *)(v9 + 716) = v10;
+      if ( v12 )
+        NiXenonRenderer::UpgradeTexture(v7, v17, v16, v15, v14, v13, v12, v11);
+      *(_DWORD *)&m_pkTexture[1].m_usExtraDataSize = 0;
+    }
+  }
+  JUMPOUT(0x82DAD9B0);
+}
+// 828CC5A0: control flows out of bounds to 82DAD9B0
+// 828CC51C: variable 'v4' is possibly undefined
+// 828CC520: variable 'v6' is possibly undefined
+// 828CC54C: variable 'v3' is possibly undefined
+// 828CC594: variable 'v16' is possibly undefined
+// 828CC594: variable 'v15' is possibly undefined
+// 828CC594: variable 'v14' is possibly undefined
+// 828CC594: variable 'v13' is possibly undefined
+// 828CC594: variable 'v11' is possibly undefined
+// 82DAD960: using guessed type double __fastcall _savegprlr_26(_DWORD, _DWORD, _DWORD);
+
+//----- (828CC5A8) --------------------------------------------------------
+NiXenonSourceTextureData *__fastcall NiXenonSourceTextureData::`scalar deleting destructor'(
+        NiXenonSourceTextureData *this,
+        int a2)
+{
+  char v3; // r30
+  NiXenonSourceTextureData *result; // r3
+
+  v3 = a2;
+  NiXenonSourceTextureData::~NiXenonSourceTextureData(this, a2);
+  result = this;
+  if ( (v3 & 1) != 0 )
+  {
+    NiMemObject::operator delete(this, 0x88u);
+    return this;
+  }
+  return result;
+}
+
+//----- (828CC600) --------------------------------------------------------
+void __fastcall NiXenonSourceTextureData::LoadTextureFile(
+        NiXenonSourceTextureData *this,
+        const char *pcFilename,
+        NiXenonRenderer *pkRenderer,
+        const NiTexture::FormatPrefs *kPrefs,
+        NiFile *pFile)
+{
+  int v5; // r10
+  int v6; // r9
+  int v7; // r8
+  NiFile *v8; // r7
+  int v9; // r6
+  NiXenonRenderer *v10; // r5
+  const char *v11; // r4
+  NiXenonSourceTextureData *v12; // r3
+  NiXenonSourceTextureData *v13; // r29
+  const char *v14; // r28
+  NiXenonRenderer *v15; // r30
+  const NiTexture::FormatPrefs *v16; // r27
+  NiFile *File; // r31
+  int v18; // r10
+  int v19; // r9
+  int v20; // r8
+  int v21; // r7
+  int v22; // r6
+  int v23; // r5
+  int v24; // r9
+  NiFile_vtbl *v25; // r11
+  NiFile *v26; // r3
+  BOOL bIsDDX; // r11
+  char v28; // r3
+  D3DBaseTexture *v29[4]; // [sp+50h] [-560h] BYREF
+  char v30[272]; // [sp+60h] [-550h] BYREF
+  NiFilename v31; // [sp+170h] [-440h] BYREF
+
+  _savegprlr_27(this, pcFilename);
+  v13 = v12;
+  v14 = v11;
+  v15 = v10;
+  v16 = (const NiTexture::FormatPrefs *)v9;
+  if ( v10 && v10->m_pkD3DDevice9 )
+  {
+    if ( v8 )
+    {
+      File = v8;
+    }
+    else
+    {
+      strcpy_s(v30, 260, v11, v9, 0, v7, v6, v5);
+      NiPath::Standardize(v30);
+      NiFilename::NiFilename(&v31, v30, v23, v22, v21, v20, v19, v18);
+      if ( stricmp((int)v31.m_acExt, (int)".bmp")
+        && stricmp((int)v31.m_acExt, (int)".tga")
+        && stricmp((int)v31.m_acExt, (int)".dds")
+        && stricmp((int)v31.m_acExt, (int)".ddx") )
+      {
+        goto __restgprlr_27;
+      }
+      File = NiFile::GetFile(v30, READ_ONLY, 0x8000u);
+    }
+    if ( !File )
+      goto __restgprlr_27;
+    v24 = ((unsigned __int8 (__fastcall *)(NiFile *))File->operator bool)(File);
+    v25 = File->__vftable;
+    v26 = File;
+    if ( !v24 )
+      goto LABEL_14;
+    if ( !((int (__fastcall *)(NiFile *))v25->GetFileSize)(File) )
+    {
+      v25 = File->__vftable;
+      v26 = File;
+LABEL_14:
+      ((void (__fastcall *)(NiFile *, int))v25->~NiFile)(v26, 1);
+      goto __restgprlr_27;
+    }
+    bIsDDX = File->bIsDDX;
+    v29[0] = 0;
+    if ( bIsDDX )
+      v28 = NiXenonSourceTextureData::CreateFromDDXFile(v13, v14, File, v29, v15);
+    else
+      NiXenonSourceTextureData::CreateFromDDSFile(v13, File, v29, v15, v16);
+    if ( v28 )
+    {
+      if ( v29[0] )
+        NiXenonSourceTextureData::PostProcessTexture(v13, v29[0]);
+    }
+  }
+__restgprlr_27:
+  JUMPOUT(0x82DAD9B4);
+}
+// 828CC740: control flows out of bounds to 82DAD9B4
+// 828CC60C: variable 'v12' is possibly undefined
+// 828CC610: variable 'v11' is possibly undefined
+// 828CC614: variable 'v10' is possibly undefined
+// 828CC618: variable 'v9' is possibly undefined
+// 828CC634: variable 'v8' is possibly undefined
+// 828CC64C: variable 'v7' is possibly undefined
+// 828CC64C: variable 'v6' is possibly undefined
+// 828CC64C: variable 'v5' is possibly undefined
+// 828CC660: variable 'v23' is possibly undefined
+// 828CC660: variable 'v22' is possibly undefined
+// 828CC660: variable 'v21' is possibly undefined
+// 828CC660: variable 'v20' is possibly undefined
+// 828CC660: variable 'v19' is possibly undefined
+// 828CC660: variable 'v18' is possibly undefined
+// 828CC790: variable 'v28' is possibly undefined
+// 82DAD964: using guessed type double __fastcall _savegprlr_27(_DWORD, _DWORD);
+
+//----- (828CC7B0) --------------------------------------------------------
+void __fastcall NiXenonSourceTextureData::Create(NiSourceTexture *pkTexture, NiXenonRenderer *pkRenderer)
+{
+  __int64 v2; // r4
+  int v3; // r26
+  int v4; // r21
+  char IsKindOf; // r3
+  __int64 v6; // r6
+  NiXenonSourceTextureData *v7; // r3
+  int v8; // r3
+  int v9; // r31
+  int v10; // r27
+  NiPixelData *v11; // r29
+  const char *v12; // r30
+  char v13; // r3
+  unsigned int v14; // r3
+  NiImageConverter *ImageConverter; // r3
+  NiPixelData *v16; // r19
+  _DWORD *v17; // r25
+  char v21; // cr34
+  NiPixelData *ReplacementData; // r3
+  NiTexture::RendererData::CreationFailure v23; // r4
+  int v24; // r11
+  bool v25; // r11
+  int v26; // r11
+  bool v27; // r11
+  _DWORD *v28; // r3
+  NiPixelData *v29; // r3
+  NiTexture::RendererData::CreationFailure v30; // r4
+  unsigned int v31; // r11
+  bool v32; // r11
+  unsigned int v33; // r11
+  bool v34; // r11
+  NiPixelFormat **v35; // r6
+  const NiPixelFormat *p_m_kPixelFormat; // r4
+  NiXenonTextureData *v37; // r3
+  int v38; // r8
+  const NiTexture::FormatPrefs *v39; // r5
+  _DWORD *v40; // r3
+  NiPixelData *v41; // r30
+  int v42; // r10
+  D3DBaseTexture *v43; // r30
+  int v44; // r3
+  NiImageConverter *v45; // r3
+  int v46; // r10
+  int v47; // r11
+  bool v48; // r11
+  int v49; // r10
+  unsigned int *m_puiOffsetInBytes; // r6
+  int m_uiMipmapLevels; // r5
+  unsigned int m_uiFaces; // r4
+  char v56; // cr34
+  char v61; // cr34
+  unsigned int v62; // [sp+38h] [-C8h]
+  D3DTexture *v63; // [sp+3Ch] [-C4h]
+  unsigned int *v64; // [sp+40h] [-C0h]
+  unsigned int *v65; // [sp+44h] [-BCh]
+  int v66; // [sp+48h] [-B8h]
+  int v67; // [sp+4Ch] [-B4h]
+  int v68; // [sp+50h] [-B0h]
+  int v69; // [sp+58h] [-A8h]
+  int v70; // [sp+60h] [-A0h]
+  int v71; // [sp+68h] [-98h]
+  NiPointer<NiPixelData> v72; // [sp+70h] [-90h] BYREF
+  NiPointer<NiPixelData> v73; // [sp+74h] [-8Ch] BYREF
+  _DWORD v74[34]; // [sp+78h] [-88h] BYREF
+
+  v2 = ((__int64 (__fastcall *)(NiSourceTexture *, NiXenonRenderer *))_savegprlr_19)(pkTexture, pkRenderer);
+  v3 = HIDWORD(v2);
+  v4 = v2;
+  if ( HIDWORD(v2) )
+    IsKindOf = NiObject::IsKindOf((NiObject *)HIDWORD(v2), &NiSourceCubeMap::ms_RTTI);
+  else
+    IsKindOf = 0;
+  if ( IsKindOf )
+  {
+    NiXenonSourceCubeMapData::Create((NiSourceCubeMap *)v3, (NiXenonRenderer *)v4);
+    goto __restgprlr_19;
+  }
+  v7 = (NiXenonSourceTextureData *)NiMemObject::operator new(0x88u);
+  if ( v7 )
+  {
+    NiXenonSourceTextureData::NiXenonSourceTextureData(v7, (NiSourceTexture *)v3, (NiXenonRenderer *)v4);
+    v9 = v8;
+  }
+  else
+  {
+    v9 = 0;
+  }
+  v10 = *(_DWORD *)(v3 + 56);
+  v11 = 0;
+  if ( !v10 )
+  {
+    v11 = *(NiPixelData **)(v3 + 60);
+    if ( !v11 )
+    {
+      v12 = *(const char **)(v3 + 52);
+      NiXenonSourceTextureData::LoadTextureFile(
+        (NiXenonSourceTextureData *)v9,
+        v12,
+        (NiXenonRenderer *)v4,
+        (const NiTexture::FormatPrefs *)(v3 + 24),
+        *(NiFile **)(v3 + 68));
+      if ( *(_DWORD *)(v3 + 68) )
+        v13 = 1;
+      if ( v13 )
+      {
+        if ( *(unsigned __int8 *)(v9 + 90) == 255 )
+        {
+          v14 = (*(int (__fastcall **)(int))(*(_DWORD *)v9 + 152))(v9);
+          BSDegradePriority::CalcPriority(
+            *(_DWORD *)(v9 + 12),
+            *(_DWORD *)(v9 + 16),
+            v14,
+            (BSDegradePriority *)(v9 + 88));
+        }
+        *(_DWORD *)(*(_DWORD *)(v9 + 8) + 36) = v9;
+        goto __restgprlr_19;
+      }
+      ImageConverter = NiImageConverter::GetImageConverter();
+      v11 = (NiPixelData *)((int (__fastcall *)(NiImageConverter *, const char *, _DWORD, _DWORD))ImageConverter->ReadImageFile)(
+                             ImageConverter,
+                             v12,
+                             0,
+                             0);
+    }
+  }
+  v16 = v11;
+  v72.m_pObject = v11;
+  v17 = 0;
+  if ( v11 )
+  {
+    _R11 = &v11->m_uiRefCount;
+    do
+    {
+      __asm
+      {
+        mfmsr     r9
+        mtmsree   r13
+        lwarx     r10, 0, r11
+      }
+      ++_R10;
+      __asm
+      {
+        stwcx.    r10, 0, r11
+        mtmsree   r9
+      }
+    }
+    while ( !v21 );
+    __lwsync();
+  }
+  if ( !v10 )
+  {
+    if ( !v11 )
+    {
+      ReplacementData = NiTexture::RendererData::GetReplacementData(
+                          (NiTexture *)v3,
+                          ACTIVATE_CHOICE|ONE_VALUE|0x80000000,
+                          1);
+      *(_BYTE *)(v9 + 112) = 1;
+      v11 = ReplacementData;
+      NiRenderer::Error("Failed to find texture %s\n", *(const char **)(v3 + 52));
+      goto LABEL_68;
+    }
+    if ( *(unsigned __int8 *)(v9 + 90) == 255 )
+      BSDegradePriority::CalcPriority(
+        *v11->m_puiWidth,
+        *v11->m_puiHeight,
+        v11->m_uiMipmapLevels,
+        (BSDegradePriority *)(v9 + 88));
+    v31 = *v11->m_puiWidth;
+    if ( v31 )
+      v32 = ((v31 - 1) & v31) == 0;
+    else
+      v32 = 0;
+    if ( v32 && ((v33 = *v11->m_puiHeight) != 0 ? (v34 = ((v33 - 1) & v33) == 0) : (v34 = 0), v34)
+      || ((*(int (__fastcall **)(int))(*(_DWORD *)v4 + 164))(v4) & 8) != 0 )
+    {
+      v35 = (NiPixelFormat **)(v4 + 1296);
+      p_m_kPixelFormat = &v11->m_kPixelFormat;
+      v37 = (NiXenonTextureData *)v9;
+    }
+    else
+    {
+      if ( ((*(int (__fastcall **)(int))(*(_DWORD *)v4 + 164))(v4) & 4) == 0 )
+      {
+        v30 = ACTIVATE_CHOICE|TWO_VALUE|0x80000000;
+        goto LABEL_67;
+      }
+      v35 = (NiPixelFormat **)(v4 + 1296);
+      p_m_kPixelFormat = &v11->m_kPixelFormat;
+      v37 = (NiXenonTextureData *)v9;
+      if ( *(_DWORD *)(v3 + 24) == 3 )
+      {
+        v38 = *(_DWORD *)(v3 + 32);
+        v39 = (const NiTexture::FormatPrefs *)v74;
+        v74[1] = *(_DWORD *)(v3 + 28);
+        v74[0] = 2;
+        v74[2] = v38;
+LABEL_65:
+        NiXenonTextureData::FindMatchingPixelFormat(v37, p_m_kPixelFormat, v39, v35);
+        v17 = v40;
+        if ( v40 )
+          goto LABEL_68;
+        v30 = -2147483644;
+LABEL_67:
+        v11 = NiTexture::RendererData::GetReplacementData((NiTexture *)v3, v30, 1);
+        *(_BYTE *)(v9 + 112) = 1;
+LABEL_68:
+        if ( *(_BYTE *)(v9 + 112) )
+        {
+          v17 = *(_DWORD **)(4 * *(_DWORD *)(v4 + 1776) + v4 + 1296);
+        }
+        else if ( v10 )
+        {
+          HIDWORD(v6) = 68;
+          memcpy((_DWORD *)(v9 + 20), (_DWORD *)(v10 + 20), v6);
+          *(_DWORD *)(v9 + 12) = **(_DWORD **)(v10 + 100);
+          *(_DWORD *)(v9 + 16) = **(_DWORD **)(v10 + 104);
+          v42 = *(_DWORD *)(v10 + 116);
+          *(_BYTE *)(v9 + 112) = 0;
+          *(_DWORD *)(v9 + 100) = v4;
+          *(_DWORD *)(v9 + 108) = v42;
+          *(_BYTE *)(v9 + 113) = -1 - ((v42 == 1) - 2);
+          NiXenonSourceTextureData::UpdatePalette((NiXenonSourceTextureData *)v9, *(NiPalette **)(v10 + 144));
+          *(_DWORD *)(v9 + 116) = *(_DWORD *)(4 * *(_DWORD *)(v10 + 116) + *(_DWORD *)(v10 + 108))
+                                * *(_DWORD *)(v10 + 124);
+          v43 = (D3DBaseTexture *)_NiMalloc(0x34u);
+          if ( !v43
+            || (XGSetTextureHeader(
+                  *(_DWORD *)(v9 + 12),
+                  *(_DWORD *)(v9 + 16),
+                  *(_DWORD *)(v9 + 108),
+                  0,
+                  (_D3DFORMAT)v73.m_pObject,
+                  0,
+                  0,
+                  0xFFFFFFFF,
+                  v62,
+                  v63,
+                  v64,
+                  v65,
+                  v66,
+                  v67,
+                  v68,
+                  0,
+                  v69,
+                  v43,
+  NiFile *v26; // r3
+  BOOL bIsDDX; // r11
+  char v28; // r3
+  D3DBaseTexture *v29[4]; // [sp+50h] [-560h] BYREF
+  char v30[272]; // [sp+60h] [-550h] BYREF
+  NiFilename v31; // [sp+170h] [-440h] BYREF
+
+  _savegprlr_27(this, pcFilename);
+  v13 = v12;
+  v14 = v11;
+  v15 = v10;
+  v16 = (const NiTexture::FormatPrefs *)v9;
+  if ( v10 && v10->m_pkD3DDevice9 )
+  {
+    if ( v8 )
+    {
+      File = v8;
+    }
+    else
+    {
+      strcpy_s(v30, 260, v11, v9, 0, v7, v6, v5);
+      NiPath::Standardize(v30);
+      NiFilename::NiFilename(&v31, v30, v23, v22, v21, v20, v19, v18);
+      if ( stricmp((int)v31.m_acExt, (int)".bmp")
+        && stricmp((int)v31.m_acExt, (int)".tga")
+        && stricmp((int)v31.m_acExt, (int)".dds")
+        && stricmp((int)v31.m_acExt, (int)".ddx") )
+      {
+        goto __restgprlr_27;
+      }
+      File = NiFile::GetFile(v30, READ_ONLY, 0x8000u);
+    }
+    if ( !File )
+      goto __restgprlr_27;
+    v24 = ((unsigned __int8 (__fastcall *)(NiFile *))File->operator bool)(File);
+    v25 = File->__vftable;
+    v26 = File;
+    if ( !v24 )
+      goto LABEL_14;
+    if ( !((int (__fastcall *)(NiFile *))v25->GetFileSize)(File) )
+    {
+      v25 = File->__vftable;
+      v26 = File;
+LABEL_14:
+      ((void (__fastcall *)(NiFile *, int))v25->~NiFile)(v26, 1);
+      goto __restgprlr_27;
+    }
+    bIsDDX = File->bIsDDX;
+    v29[0] = 0;
+    if ( bIsDDX )
+      v28 = NiXenonSourceTextureData::CreateFromDDXFile(v13, v14, File, v29, v15);
+    else
+      NiXenonSourceTextureData::CreateFromDDSFile(v13, File, v29, v15, v16);
+    if ( v28 )
+    {
+      if ( v29[0] )
+        NiXenonSourceTextureData::PostProcessTexture(v13, v29[0]);
+    }
+  }
+__restgprlr_27:
+  JUMPOUT(0x82DAD9B4);
+}
+// 828CC740: control flows out of bounds to 82DAD9B4
+// 828CC60C: variable 'v12' is possibly undefined
+// 828CC610: variable 'v11' is possibly undefined
+// 828CC614: variable 'v10' is possibly undefined
+// 828CC618: variable 'v9' is possibly undefined
+// 828CC634: variable 'v8' is possibly undefined
+// 828CC64C: variable 'v7' is possibly undefined
+// 828CC64C: variable 'v6' is possibly undefined
+// 828CC64C: variable 'v5' is possibly undefined
+// 828CC660: variable 'v23' is possibly undefined
+// 828CC660: variable 'v22' is possibly undefined
+// 828CC660: variable 'v21' is possibly undefined
+// 828CC660: variable 'v20' is possibly undefined
+// 828CC660: variable 'v19' is possibly undefined
+// 828CC660: variable 'v18' is possibly undefined
+// 828CC790: variable 'v28' is possibly undefined
+// 82DAD964: using guessed type double __fastcall _savegprlr_27(_DWORD, _DWORD);
+
+//----- (828CC7B0) --------------------------------------------------------
+void __fastcall NiXenonSourceTextureData::Create(NiSourceTexture *pkTexture, NiXenonRenderer *pkRenderer)
+{
+  __int64 v2; // r4
+  int v3; // r26
+  int v4; // r21
+  char IsKindOf; // r3
+  __int64 v6; // r6
+  NiXenonSourceTextureData *v7; // r3
+  int v8; // r3
+  int v9; // r31
+  int v10; // r27
+  NiPixelData *v11; // r29
+  const char *v12; // r30
+  char v13; // r3
+  unsigned int v14; // r3
+  NiImageConverter *ImageConverter; // r3
+  NiPixelData *v16; // r19
+  _DWORD *v17; // r25
+  char v21; // cr34
+  NiPixelData *ReplacementData; // r3
+  NiTexture::RendererData::CreationFailure v23; // r4
+  int v24; // r11
+  bool v25; // r11
+  int v26; // r11
+  bool v27; // r11
+  _DWORD *v28; // r3
+  NiPixelData *v29; // r3
+  NiTexture::RendererData::CreationFailure v30; // r4
+  unsigned int v31; // r11
+  bool v32; // r11
+  unsigned int v33; // r11
+  bool v34; // r11
+  NiPixelFormat **v35; // r6
+  const NiPixelFormat *p_m_kPixelFormat; // r4
+  NiXenonTextureData *v37; // r3
+  int v38; // r8
+  const NiTexture::FormatPrefs *v39; // r5
+  _DWORD *v40; // r3
+  NiPixelData *v41; // r30
+  int v42; // r10
+  D3DBaseTexture *v43; // r30
+  int v44; // r3
+  NiImageConverter *v45; // r3
+  int v46; // r10
+  int v47; // r11
+  bool v48; // r11
+  int v49; // r10
+  unsigned int *m_puiOffsetInBytes; // r6
+  int m_uiMipmapLevels; // r5
+  unsigned int m_uiFaces; // r4
+  char v56; // cr34
+  char v61; // cr34
+  unsigned int v62; // [sp+38h] [-C8h]
+  D3DTexture *v63; // [sp+3Ch] [-C4h]
+  unsigned int *v64; // [sp+40h] [-C0h]
+  unsigned int *v65; // [sp+44h] [-BCh]
+  int v66; // [sp+48h] [-B8h]
+  int v67; // [sp+4Ch] [-B4h]
+  int v68; // [sp+50h] [-B0h]
+  int v69; // [sp+58h] [-A8h]
+  int v70; // [sp+60h] [-A0h]
+  int v71; // [sp+68h] [-98h]
+  NiPointer<NiPixelData> v72; // [sp+70h] [-90h] BYREF
+  NiPointer<NiPixelData> v73; // [sp+74h] [-8Ch] BYREF
+  _DWORD v74[34]; // [sp+78h] [-88h] BYREF
+
+  v2 = ((__int64 (__fastcall *)(NiSourceTexture *, NiXenonRenderer *))_savegprlr_19)(pkTexture, pkRenderer);
+  v3 = HIDWORD(v2);
+  v4 = v2;
+  if ( HIDWORD(v2) )
+    IsKindOf = NiObject::IsKindOf((NiObject *)HIDWORD(v2), &NiSourceCubeMap::ms_RTTI);
+  else
+    IsKindOf = 0;
+  if ( IsKindOf )
+  {
+    NiXenonSourceCubeMapData::Create((NiSourceCubeMap *)v3, (NiXenonRenderer *)v4);
+    goto __restgprlr_19;
+  }
+  v7 = (NiXenonSourceTextureData *)NiMemObject::operator new(0x88u);
+  if ( v7 )
+  {
+    NiXenonSourceTextureData::NiXenonSourceTextureData(v7, (NiSourceTexture *)v3, (NiXenonRenderer *)v4);
+    v9 = v8;
+  }
+  else
+  {
+    v9 = 0;
+  }
+  v10 = *(_DWORD *)(v3 + 56);
+  v11 = 0;
+  if ( !v10 )
+  {
+    v11 = *(NiPixelData **)(v3 + 60);
+    if ( !v11 )
+    {
+      v12 = *(const char **)(v3 + 52);
+      NiXenonSourceTextureData::LoadTextureFile(
+        (NiXenonSourceTextureData *)v9,
+        v12,
+        (NiXenonRenderer *)v4,
+        (const NiTexture::FormatPrefs *)(v3 + 24),
+        *(NiFile **)(v3 + 68));
+      if ( *(_DWORD *)(v3 + 68) )
+        v13 = 1;
+      if ( v13 )
+      {
+        if ( *(unsigned __int8 *)(v9 + 90) == 255 )
+        {
+          v14 = (*(int (__fastcall **)(int))(*(_DWORD *)v9 + 152))(v9);
+          BSDegradePriority::CalcPriority(
+            *(_DWORD *)(v9 + 12),
+            *(_DWORD *)(v9 + 16),
+            v14,
+            (BSDegradePriority *)(v9 + 88));
+        }
+        *(_DWORD *)(*(_DWORD *)(v9 + 8) + 36) = v9;
+        goto __restgprlr_19;
+      }
+      ImageConverter = NiImageConverter::GetImageConverter();
+      v11 = (NiPixelData *)((int (__fastcall *)(NiImageConverter *, const char *, _DWORD, _DWORD))ImageConverter->ReadImageFile)(
+                             ImageConverter,
+                             v12,
+                             0,
+                             0);
+    }
+  }
+  v16 = v11;
+  v72.m_pObject = v11;
+  v17 = 0;
+  if ( v11 )
+  {
+    _R11 = &v11->m_uiRefCount;
+    do
+    {
+      __asm
+      {
+        mfmsr     r9
+        mtmsree   r13
+        lwarx     r10, 0, r11
+      }
+      ++_R10;
+      __asm
+      {
+        stwcx.    r10, 0, r11
+        mtmsree   r9
+      }
+    }
+    while ( !v21 );
+    __lwsync();
+  }
+  if ( !v10 )
+  {
+    if ( !v11 )
+    {
+      ReplacementData = NiTexture::RendererData::GetReplacementData(
+                          (NiTexture *)v3,
+                          ACTIVATE_CHOICE|ONE_VALUE|0x80000000,
+                          1);
+      *(_BYTE *)(v9 + 112) = 1;
+      v11 = ReplacementData;
+      NiRenderer::Error("Failed to find texture %s\n", *(const char **)(v3 + 52));
+      goto LABEL_68;
+    }
+    if ( *(unsigned __int8 *)(v9 + 90) == 255 )
+      BSDegradePriority::CalcPriority(
+        *v11->m_puiWidth,
+        *v11->m_puiHeight,
+        v11->m_uiMipmapLevels,
+        (BSDegradePriority *)(v9 + 88));
+    v31 = *v11->m_puiWidth;
+    if ( v31 )
+      v32 = ((v31 - 1) & v31) == 0;
+    else
+      v32 = 0;
+    if ( v32 && ((v33 = *v11->m_puiHeight) != 0 ? (v34 = ((v33 - 1) & v33) == 0) : (v34 = 0), v34)
+      || ((*(int (__fastcall **)(int))(*(_DWORD *)v4 + 164))(v4) & 8) != 0 )
+    {
+      v35 = (NiPixelFormat **)(v4 + 1296);
+      p_m_kPixelFormat = &v11->m_kPixelFormat;
+      v37 = (NiXenonTextureData *)v9;
+    }
+    else
+    {
+      if ( ((*(int (__fastcall **)(int))(*(_DWORD *)v4 + 164))(v4) & 4) == 0 )
+      {
+        v30 = ACTIVATE_CHOICE|TWO_VALUE|0x80000000;
+        goto LABEL_67;
+      }
+      v35 = (NiPixelFormat **)(v4 + 1296);
+      p_m_kPixelFormat = &v11->m_kPixelFormat;
+      v37 = (NiXenonTextureData *)v9;
+      if ( *(_DWORD *)(v3 + 24) == 3 )
+      {
+        v38 = *(_DWORD *)(v3 + 32);
+        v39 = (const NiTexture::FormatPrefs *)v74;
+        v74[1] = *(_DWORD *)(v3 + 28);
+        v74[0] = 2;
+        v74[2] = v38;
+LABEL_65:
+        NiXenonTextureData::FindMatchingPixelFormat(v37, p_m_kPixelFormat, v39, v35);
+        v17 = v40;
+        if ( v40 )
+          goto LABEL_68;
+        v30 = -2147483644;
+LABEL_67:
+        v11 = NiTexture::RendererData::GetReplacementData((NiTexture *)v3, v30, 1);
+        *(_BYTE *)(v9 + 112) = 1;
+LABEL_68:
+        if ( *(_BYTE *)(v9 + 112) )
+        {
+          v17 = *(_DWORD **)(4 * *(_DWORD *)(v4 + 1776) + v4 + 1296);
+        }
+        else if ( v10 )
+        {
+          HIDWORD(v6) = 68;
+          memcpy((_DWORD *)(v9 + 20), (_DWORD *)(v10 + 20), v6);
+          *(_DWORD *)(v9 + 12) = **(_DWORD **)(v10 + 100);
+          *(_DWORD *)(v9 + 16) = **(_DWORD **)(v10 + 104);
+          v42 = *(_DWORD *)(v10 + 116);
+          *(_BYTE *)(v9 + 112) = 0;
+          *(_DWORD *)(v9 + 100) = v4;
+          *(_DWORD *)(v9 + 108) = v42;
+          *(_BYTE *)(v9 + 113) = -1 - ((v42 == 1) - 2);
+          NiXenonSourceTextureData::UpdatePalette((NiXenonSourceTextureData *)v9, *(NiPalette **)(v10 + 144));
+          *(_DWORD *)(v9 + 116) = *(_DWORD *)(4 * *(_DWORD *)(v10 + 116) + *(_DWORD *)(v10 + 108))
+                                * *(_DWORD *)(v10 + 124);
+          v43 = (D3DBaseTexture *)_NiMalloc(0x34u);
+          if ( !v43
+            || (XGSetTextureHeader(
+                  *(_DWORD *)(v9 + 12),
+                  *(_DWORD *)(v9 + 16),
+                  *(_DWORD *)(v9 + 108),
+                  0,
+                  (_D3DFORMAT)v73.m_pObject,
+                  0,
+                  0,
+                  0xFFFFFFFF,
+                  v62,
+                  v63,
+                  v64,
+                  v65,
+                  v66,
+                  v67,
+                  v68,
+                  0,
+                  v69,
+                  v43,
+                  v70,
+                  0,
+                  v71,
+                  0),
+                !v44) )
+          {
+            NiPointer<NiPixelData>::~NiPointer<NiPixelData>(&v72);
+            goto __restgprlr_19;
+          }
+          XGOffsetResourceAddress(v43, (void *)(*(_DWORD *)(v10 + 96) + **(_DWORD **)(v10 + 108)));
+          *(_DWORD *)(v9 + 104) = v43;
+          goto LABEL_93;
+        }
+        if ( *(_BYTE *)(v9 + 112) )
+        {
+          v41 = v11;
+        }
+        else if ( v11->bNoConvert )
+        {
+          v41 = v11;
+        }
+        else
+        {
+          v45 = NiImageConverter::GetImageConverter();
+          v41 = (NiPixelData *)((int (__fastcall *)(NiImageConverter *, NiPixelData *, _DWORD *, NiPixelData *, _DWORD))v45->ConvertPixelData)(
+                                 v45,
+                                 v11,
+                                 v17,
+                                 v11,
+                                 *(unsigned __int8 *)(v9 + 113));
+        }
+        HIDWORD(v6) = 68;
+        *(_DWORD *)(v9 + 128) = v41->m_uiRevID;
+        memcpy((_DWORD *)(v9 + 20), v17, v6);
+        v46 = *(unsigned __int8 *)(v9 + 112);
+        *(_DWORD *)(v9 + 12) = *v41->m_puiWidth;
+        *(_DWORD *)(v9 + 16) = *v41->m_puiHeight;
+        v48 = 0;
+        if ( !v46 )
+        {
+          v47 = *(_DWORD *)(v3 + 32);
+          if ( v47 == 1 || v47 == 2 && NiTexture::ms_bMipmapByDefault )
+            v48 = 1;
+        }
+        v49 = *(_DWORD *)(v9 + 104);
+        *(_BYTE *)(v9 + 113) = v48;
+        if ( !v49 )
+          NiXenonSourceTextureData::CreateSurf((NiXenonSourceTextureData *)v9, v41);
+        if ( *(_DWORD *)(v9 + 104) )
+          NiXenonSourceTextureData::CopyDataToSurface((NiXenonSourceTextureData *)v9, v41);
+        *(_DWORD *)(v9 + 108) = v41->m_uiMipmapLevels;
+        NiXenonSourceTextureData::UpdatePalette((NiXenonSourceTextureData *)v9, v11->m_spPalette.m_pObject);
+        m_puiOffsetInBytes = v41->m_puiOffsetInBytes;
+        m_uiMipmapLevels = v41->m_uiMipmapLevels;
+        m_uiFaces = v41->m_uiFaces;
+        _R7 = &v41->m_uiRefCount;
+        v73.m_pObject = v41;
+        *(_DWORD *)(v9 + 116) = m_puiOffsetInBytes[m_uiMipmapLevels] * m_uiFaces;
+        do
+        {
+          __asm
+          {
+            mfmsr     r9
+            mtmsree   r13
+            lwarx     r10, 0, r7
+          }
+          ++_R10;
+          __asm
+          {
+            stwcx.    r10, 0, r7
+            mtmsree   r9
+          }
+        }
+        while ( !v56 );
+        __lwsync();
+        NiPointer<NiPixelData>::~NiPointer<NiPixelData>(&v73);
+LABEL_93:
+        *(_DWORD *)(*(_DWORD *)(v9 + 8) + 36) = v9;
+        if ( NiSourceTexture::ms_bDestroyAppData )
+          (*(void (__fastcall **)(int))(*(_DWORD *)v3 + 168))(v3);
+        if ( v16 )
+        {
+          _R11 = &v16->m_uiRefCount;
+          do
+          {
+            __asm
+            {
+              mfmsr     r9
+              mtmsree   r13
+              lwarx     r10, 0, r11
+            }
+            _R10 = _R10 - 1;
+            __asm
+            {
+              stwcx.    r10, 0, r11
+              mtmsree   r9
+            }
+          }
+          while ( !v61 );
+          __lwsync();
+          if ( !_R10 )
+            ((void (__fastcall *)(NiPixelData *))v16->DeleteThis)(v16);
+        }
+__restgprlr_19:
+        JUMPOUT(0x82DAD994);
+      }
+    }
+    v39 = (const NiTexture::FormatPrefs *)(v3 + 24);
+    goto LABEL_65;
+  }
+  if ( *(unsigned __int8 *)(v9 + 90) == 255 )
+    BSDegradePriority::CalcPriority(
+      **(_DWORD **)(v10 + 100),
+      **(_DWORD **)(v10 + 104),
+      *(_DWORD *)(v10 + 116),
+      (BSDegradePriority *)(v9 + 88));
+  if ( *(_DWORD *)(v10 + 28) == 1 )
+  {
+    v24 = **(_DWORD **)(v10 + 100);
+    if ( v24 )
+      v25 = ((v24 - 1) & v24) == 0;
+    else
+      v25 = 0;
+  v6 = v2;
+  v7 = (_DWORD *)(v2 + 1296);
+  v8 = 0;
+  while ( 1 )
+  {
+    if ( *v7 )
+      goto LABEL_7;
+    if ( v7[1] )
+      break;
+    v8 += 2;
+    v7 += 2;
+    if ( v8 >= 0x16 )
+      goto LABEL_7;
+  }
+  ++v8;
+LABEL_7:
+  if ( v8 == 22 )
+  {
+    NiRenderer::Warning("NiXenonSourceCubeMapData::Create> No Cube Map texture formats supported\n");
+    goto __restgprlr_19;
+  }
+  v10 = (NiXenonSourceTextureData *)NiMemObject::operator new(0x8Cu);
+  v11 = v10;
+  if ( v10 )
+  {
+    NiXenonSourceTextureData::NiXenonSourceTextureData(v10, (NiSourceTexture *)v5, (NiXenonRenderer *)v6);
+    v11[1].__vftable = 0;
+    v11->ulTextureMemorySize = 0;
+    v11->__vftable = (NiXenonSourceTextureData_vtbl *)&NiXenonSourceCubeMapData::`vftable';
+  }
+  else
+  {
+    v11 = 0;
+  }
+  v12 = *(_DWORD *)(v5 + 56);
+  v13 = 0;
+  if ( !v12 )
+  {
+    v13 = *(NiPixelData **)(v5 + 60);
+    if ( !v13 )
+    {
+      v14 = *(_DWORD *)(v5 + 52);
+      if ( v14 )
+      {
+        v15 = *(unsigned __int8 **)(v5 + 52);
+        while ( *v15++ )
+          ;
+        v17 = v15 - 1;
+        v18 = *(const char **)(v5 + 52);
+        *(v15 - 2) = 120;
+        if ( (unsigned __int8)NiXenonSourceTextureData::CreateFromDDXFile(
+                                v11,
+                                v18,
+                                0,
+                                &v11->m_pkD3DTexture,
+                                NiRenderer::ms_pkRenderer) )
+        {
+LABEL_86:
+          v11->m_pkTexture->m_pkRendererData = v11;
+          goto __restgprlr_19;
+        }
+        *(v17 - 1) = 115;
+        ImageConverter = NiImageConverter::GetImageConverter();
+        ReplacementData = (NiPixelData *)((int (__fastcall *)(NiImageConverter *, int, _DWORD, _DWORD))ImageConverter->ReadImageFile)(
+                                           ImageConverter,
+                                           v14,
+                                           0,
+                                           0);
+      }
+      else
+      {
+        ReplacementData = NiTexture::RendererData::GetReplacementData(
+                            (NiTexture *)v5,
+                            (NiTexture::RendererData::CreationFailure)-2147483640,
+                            1);
+        v11->m_bReplacementData = 1;
+      }
+      v13 = ReplacementData;
+    }
+  }
+  v21 = 0;
+  if ( !v12 )
+  {
+    if ( v13 )
+    {
+      v29 = *v13->m_puiWidth;
+      if ( v29 == *v13->m_puiHeight && (v29 ? (v30 = ((v29 - 1) & v29) == 0) : (v30 = 0), v30) )
+      {
+        NiXenonTextureData::FindMatchingPixelFormat(
+          v11,
+          &v13->m_kPixelFormat,
+          (const NiTexture::FormatPrefs *)(v5 + 24),
+          v3);
+        v21 = v31;
+        if ( v31 )
+        {
+          m_eFormat = v13->m_kPixelFormat.m_eFormat;
+          if ( m_eFormat == FORMAT_PAL || (v34 = m_eFormat != FORMAT_PALALPHA, v33 = 0, !v34) )
+            v33 = 1;
+          if ( !v33 )
+            goto LABEL_51;
+        }
+        v35 = ACTIVATE_CHOICE|LEVELED_LIST|0x80000000;
+      }
+      else
+      {
+        v35 = -2147483639;
+      }
+      v36 = NiTexture::RendererData::GetReplacementData((NiTexture *)v5, v35, 1);
+      v11->m_bReplacementData = 1;
+      v13 = v36;
+    }
+    else
+    {
+      v22 = NiTexture::RendererData::GetReplacementData(
+              (NiTexture *)v5,
+              (NiTexture::RendererData::CreationFailure)-2147483640,
+              1);
+      v11->m_bReplacementData = 1;
+      v13 = v22;
+      NiRenderer::Error("Failed to find texture %s\n", *(const char **)(v5 + 52));
+    }
+LABEL_51:
+    v28 = v69;
+    goto LABEL_52;
+  }
+  if ( *(_DWORD *)(v12 + 28) == 1 )
+  {
+    v24 = **(_DWORD **)(v12 + 100);
+    if ( v24 == **(_DWORD **)(v12 + 104) && v24 && ((v24 - 1) & v24) == 0 )
+    {
+LABEL_33:
+      if ( !v11->m_bReplacementData )
+      {
+        NiXenonPixelFormat::DetermineD3DFormat((const NiPixelFormat *)(v12 + 20));
+        v28 = v27;
+        if ( v27 == D3DFMT_UNKNOWN
+          || (Direct3D_CheckDeviceFormat(0, D3DDEVTYPE_HAL, D3DFMT_A8R8G8B8, 0, D3DRTYPE_TEXTURE, v27) & 0x80000000) != 0 )
+        {
+          v13 = NiTexture::RendererData::GetReplacementData((NiTexture *)v5, ACTIVATE_CHOICE|LEVELED_LIST|0x80000000, 1);
+          v11->m_bReplacementData = 1;
+        }
+        else
+        {
+          *(_DWORD *)(v12 + 32) = v28;
+        }
+LABEL_52:
+        if ( v11->m_bReplacementData )
+        {
+          v21 = v3[*(_DWORD *)(v6 + 1776)];
+        }
+        else if ( v12 )
+        {
+          HIDWORD(v9) = 68;
+          memcpy(&v11->m_kPixelFormat.m_uFlags, (_DWORD *)(v12 + 20), v9);
+          v11->m_uiWidth = **(_DWORD **)(v12 + 100);
+          v11->m_uiHeight = **(_DWORD **)(v12 + 104);
+          if ( *(_BYTE *)(v6 + 1288) )
+            v38 = *(_DWORD *)(v12 + 116);
+          else
+            v38 = 1;
+          v11->m_pkRenderer = (NiXenonRenderer *)v6;
+          v11->m_bReplacementData = 0;
+          v11->m_uiLevels = v38;
+          v11->m_bMipmap = -1 - ((v38 == 1) - 2);
+          NiXenonSourceTextureData::UpdatePalette(v11, *(NiPalette **)(v12 + 144));
+          v11->m_uiFormattedSize = *(_DWORD *)(4 * *(_DWORD *)(v12 + 116) + *(_DWORD *)(v12 + 108))
+                                 * *(_DWORD *)(v12 + 124);
+          v39 = (D3DCubeTexture *)_NiMalloc(0x34u);
+          v40 = v39;
+          if ( v39 )
+          {
+            XGSetCubeTextureHeader(
+              v11->m_uiWidth,
+              v11->m_uiLevels,
+              0,
+              v28,
+              0,
+              0,
+              0xFFFFFFFF,
+              v39,
+              v61,
+              v62,
+              v63,
+              v64,
+              v65,
+              v66,
+              v67,
+              0,
+              v68,
+              0);
+            if ( v41 )
+            {
+              XGOffsetResourceAddress(v40, (void *)(*(_DWORD *)(v12 + 96) + **(_DWORD **)(v12 + 108)));
+              m_pkTexture = v11->m_pkTexture;
+              v11->m_pkD3DTexture = v40;
+              m_pkTexture->m_pkRendererData = v11;
+            }
+          }
+          goto __restgprlr_19;
+        }
+        if ( v11->m_bReplacementData )
+        {
+          v37 = v13;
+        }
+        else
+        {
+          v43 = NiImageConverter::GetImageConverter();
+          v37 = (NiPixelData *)((int (__fastcall *)(NiImageConverter *, NiPixelData *, NiPixelFormat *, NiPixelData *, bool))v43->ConvertPixelData)(
+                                 v43,
+                                 v13,
+                                 v21,
+                                 v13,
+                                 v11->m_bMipmap);
+        }
+        if ( !v37 )
+        {
+          v37 = NiTexture::RendererData::GetReplacementData((NiTexture *)v5, ACTIVATE_CHOICE|LEVELED_LIST|0x80000000, 1);
+          v21 = v3[*(_DWORD *)(v6 + 1776)];
+        }
+        HIDWORD(v9) = 68;
+        v11[1].__vftable = (NiXenonSourceTextureData_vtbl *)v13->m_uiRevID;
+        memcpy(&v11->m_kPixelFormat.m_uFlags, v21, v9);
+        m_puiWidth = (int *)v37->m_puiWidth;
+        m_bReplacementData = v11->m_bReplacementData;
+        v50 = *m_puiWidth;
+        v11->m_uiHeight = *m_puiWidth;
+        v11->m_uiWidth = v50;
+        v11->m_bMipmap = !m_bReplacementData && *(_DWORD *)(v5 + 32) == 1
+                      || *(_DWORD *)(v5 + 32) == 2
+                      && (m_bReplacementData = NiTexture::ms_bMipmapByDefault) != 0
+                      && *(_BYTE *)(v6 + 1288);
+        if ( *(_BYTE *)(v6 + 1288) )
+          m_uiMipmapLevels = v37->m_uiMipmapLevels;
+        else
+          m_uiMipmapLevels = 1;
+        v11->m_uiLevels = m_uiMipmapLevels;
+        NiXenonSourceCubeMapData::CreateCubeMap(
+          (NiXenonSourceCubeMapData *)v11,
+          v47,
+          v46,
+          v45,
+          v44,
+          v50,
+          (int)m_puiWidth,
+          m_bReplacementData);
+        if ( v52 && v11->m_pkD3DTexture && v37->m_uiFaces == 6 )
+        {
+          do
+            NiXenonSourceCubeMapData::CopyDataToCubeMapFace((NiXenonSourceCubeMapData *)v11, v37, v4++);
+          while ( (unsigned int)v4 < FACE_NUM );
+          NiXenonSourceTextureData::UpdatePalette(v11, v13->m_spPalette.m_pObject);
+          _R11 = &v37->m_uiRefCount;
+          v11->m_uiFormattedSize = v37->m_puiOffsetInBytes[v37->m_uiMipmapLevels] * v37->m_uiFaces;
+          do
+          {
+            __asm
+            {
+              mfmsr     r9
+              mtmsree   r13
+              lwarx     r10, 0, r11
+            }
+            ++_R10;
+            __asm
+            {
+              stwcx.    r10, 0, r11
+              mtmsree   r9
+            }
+          }
+          while ( !v56 );
+          __lwsync();
+          do
+          {
+            __asm
+            {
+              mfmsr     r9
+              mtmsree   r13
+              lwarx     r10, 0, r11
+            }
+            _R10 = _R10 - 1;
+            __asm
+            {
+              stwcx.    r10, 0, r11
+              mtmsree   r9
+            }
+          }
+          while ( !v60 );
+          __lwsync();
+          if ( !_R10 )
+            ((void (__fastcall *)(NiPixelData *))v37->DeleteThis)(v37);
+          goto LABEL_86;
+        }
+        ((void (__fastcall *)(NiXenonSourceTextureData *, int))v11->~NiObject)(v11, 1);
+__restgprlr_19:
+        JUMPOUT(0x82DAD994);
+      }
+      goto LABEL_51;
+    }
+    v23 = -2147483639;
+  }
+  else
+  {
+    v23 = ACTIVATE_CHOICE|LEVELED_LIST|0x80000000;
+  }
+  v26 = NiTexture::RendererData::GetReplacementData((NiTexture *)v5, v23, 1);
+  v11->m_bReplacementData = 1;
+  v13 = v26;
+  goto LABEL_33;
+}
+// 828CD2B8: control flows out of bounds to 82DAD994
+// 828CD49C: variable 'v27' is possibly undefined
+// 828CD56C: variable 'v31' is possibly undefined
+// 828CD5C4: variable 'v69' is possibly undefined
+// 828CD604: variable 'v9' is possibly undefined
+// 828CD6B8: variable 'v61' is possibly undefined
+// 828CD6B8: variable 'v62' is possibly undefined
+// 828CD6B8: variable 'v63' is possibly undefined
+// 828CD6B8: variable 'v64' is possibly undefined
+// 828CD6B8: variable 'v65' is possibly undefined
+// 828CD6B8: variable 'v66' is possibly undefined
+// 828CD6B8: variable 'v67' is possibly undefined
+// 828CD6B8: variable 'v68' is possibly undefined
+// 828CD6C0: variable 'v41' is possibly undefined
+// 828CD7D8: variable 'v47' is possibly undefined
+// 828CD7D8: variable 'v46' is possibly undefined
+// 828CD7D8: variable 'v45' is possibly undefined
+// 828CD7D8: variable 'v44' is possibly undefined
+// 828CD7E4: variable 'v52' is possibly undefined
+// 828CD860: variable 'v56' is possibly undefined
+// 828CD880: variable 'v60' is possibly undefined
+// 820AA920: using guessed type void *NiXenonSourceCubeMapData::`vftable';
+
+//----- (828CD8E0) --------------------------------------------------------
+void __fastcall NiXenonSourceCubeMapData::Update(
+        NiXenonSourceCubeMapData *this,
+        int a2,
+        int a3,
+        int a4,
+        int a5,
+        int a6,
+        int a7,
+        int a8)
+{
+  NiXenonSourceTextureData *v8; // r3
+  NiXenonSourceCubeMapData *v9; // r29
+  NiTimeController *m_pObject; // r31
+  bool updated; // r30
+  NiImageConverter *ImageConverter; // r3
+  int v13; // r3
+  const NiPixelData *v14; // r30
+  D3DBaseTexture *m_pkD3DTexture; // r8
+  NiSourceCubeMap::FaceID v16; // r31
+  char v20; // cr34
+  char v24; // cr34
+
+  _savegprlr_29(this, a2, a3, a4, a5, a6, a7, a8);
+  v9 = (NiXenonSourceCubeMapData *)v8;
+  if ( !v8->m_bReplacementData )
+  {
+    m_pObject = v8->m_pkTexture[1].m_spControllers.m_pObject;
+    if ( m_pObject )
+    {
+      updated = NiXenonSourceTextureData::UpdatePalette(v8, (NiPalette *)LODWORD(m_pObject[1].m_fHiKeyTime));
+      if ( m_pObject[2].__vftable != (NiTimeController_vtbl *)v9->m_uiSourceRevID || updated )
+      {
+        ImageConverter = NiImageConverter::GetImageConverter();
+        v13 = ((int (__fastcall *)(NiImageConverter *, NiTimeController *, NiPixelFormat *, NiTimeController *, bool))ImageConverter->ConvertPixelData)(
+                ImageConverter,
+                m_pObject,
+                &v9->m_kPixelFormat,
+                m_pObject,
+                v9->m_bMipmap);
+        v14 = (const NiPixelData *)v13;
+        m_pkD3DTexture = v9->m_pkD3DTexture;
+        v9->m_uiSourceRevID = (unsigned int)m_pObject[2].__vftable;
+        if ( m_pkD3DTexture )
+        {
+          v16 = FACE_POS_X;
+          if ( *(_DWORD *)(v13 + 108) )
+          {
+            do
+              NiXenonSourceCubeMapData::CopyDataToCubeMapFace(v9, v14, v16++);
+            while ( v16 < v14->m_uiFaces );
+          }
+        }
+        if ( v14 )
+        {
+          _R11 = &v14->m_uiRefCount;
+          do
+          {
+            __asm
+            {
+              mfmsr     r9
+              mtmsree   r13
+              lwarx     r10, 0, r11
+            }
+            ++_R10;
+            __asm
+            {
+              stwcx.    r10, 0, r11
+              mtmsree   r9
+            }
+          }
+          while ( !v20 );
+          __lwsync();
+          do
+          {
+            __asm
+            {
+              mfmsr     r7
+              mtmsree   r13
+              lwarx     r8, 0, r11
+            }
+            _R8 = _R8 - 1;
+            __asm
+            {
+              stwcx.    r8, 0, r11
+              mtmsree   r7
+            }
+          }
+          while ( !v24 );
+          __lwsync();
+          if ( !_R8 )
+            ((void (__fastcall *)(const NiPixelData *))v14->DeleteThis)(v14);
+        }
+      }
+    }
+  }
+  JUMPOUT(0x82DAD9BC);
+}
+// 828CDA20: control flows out of bounds to 82DAD9BC
+// 828CD8F0: variable 'v8' is possibly undefined
+// 828CD9D4: variable 'v20' is possibly undefined
+// 828CD9F4: variable 'v24' is possibly undefined
+// 82DAD96C: using guessed type double __fastcall _savegprlr_29(_DWORD, _DWORD, _DWORD, _DWORD, _DWORD, _DWORD, _DWORD, _DWORD);
+
+//----- (828CDA28) --------------------------------------------------------
+void __fastcall NiXenonRenderedCubeMapData::~NiXenonRenderedCubeMapData(NiXenonRenderedCubeMapData *this)
+{
+  unsigned int ulTextureMemorySize; // r10
+  unsigned int v3; // r9
+  unsigned int v4; // r11
+
+  ulTextureMemorySize = this->ulTextureMemorySize;
+  this->__vftable = (NiXenonRenderedCubeMapData_vtbl *)&NiXenonRenderedCubeMapData::`vftable';
+  v3 = 0;
+  NiXenonRenderedCubeMapData::ulLoadedCubeMapMemory -= ulTextureMemorySize;
+  v4 = this->ulTextureMemorySize;
+  if ( (v4 & 0xFFFFF000) != v4 )
+    v3 = (v4 & 0xFFFFF000) - v4 + 4096;
+  NiXenonRenderedCubeMapData::ulCubeMapMemoryOverhead -= v3;

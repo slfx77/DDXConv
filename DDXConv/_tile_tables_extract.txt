@@ -1,0 +1,73 @@
+
+  Fallout_Release_Beta.exe.c:220948:  D3DDECLUSAGE_COLOR,
+  Fallout_Release_Beta.exe.c:220949:  D3DDECLUSAGE_FOG,
+  Fallout_Release_Beta.exe.c:220950:  D3DDECLUSAGE_DEPTH,
+  Fallout_Release_Beta.exe.c:220951:  D3DDECLUSAGE_SAMPLE
+  Fallout_Release_Beta.exe.c:220952:}; // idb
+  Fallout_Release_Beta.exe.c:220953:__thread bool NiXenonRenderTargetGroupData::ms_bInitializeStatics = true; // idb
+> Fallout_Release_Beta.exe.c:220954:__thread char NiXenonSourceTextureData::pFirstTilingRectsA[4][3] = { { '\0', '\x02', '\x03' }, "\x12\x16\x18", "\x04\f\x10", "\x00\x02\x03" }; // idb
+> Fallout_Release_Beta.exe.c:220955:__thread NiXenonSourceTextureData::TextureTileRect NiXenonSourceTextureData::pTextureTileRectsA[25] =
+  Fallout_Release_Beta.exe.c:220956:{
+  Fallout_Release_Beta.exe.c:220957:  { 0u, 0u, 128u, 8u },
+  Fallout_Release_Beta.exe.c:220958:  { 128u, 16u, 128u, 8u },
+  Fallout_Release_Beta.exe.c:220959:  { 0u, 0u, 64u, 8u },
+  Fallout_Release_Beta.exe.c:220960:  { 0u, 0u, 64u, 4u },
+  Fallout_Release_Beta.exe.c:220961:  { 0u, 0u, 128u, 4u },
+  Fallout_Release_Beta.exe.c:220962:  { 256u, 0u, 128u, 4u },
+  Fallout_Release_Beta.exe.c:220963:  { 0u, 8u, 128u, 4u },
+  Fallout_Release_Beta.exe.c:220977:  { 128u, 32u, 128u, 8u },
+  Fallout_Release_Beta.exe.c:220978:  { 128u, 48u, 128u, 8u },
+  Fallout_Release_Beta.exe.c:220979:  { 0u, 0u, 64u, 8u },
+  Fallout_Release_Beta.exe.c:220980:  { 0u, 16u, 64u, 8u },
+  Fallout_Release_Beta.exe.c:220981:  { 0u, 0u, 64u, 8u }
+  Fallout_Release_Beta.exe.c:220982:}; // idb
+> Fallout_Release_Beta.exe.c:220983:__thread char NiXenonSourceTextureData::pTilingRectCountsA[4][3] = { { '\x02', '\x01', '\x01' }, "\x04\x02\x01", "\b\x04\x02", "\x02\x01\x01" }; // idb
+> Fallout_Release_Beta.exe.c:220984:__thread unsigned __int16 NiXenonSourceTextureData::pTilingStridesA[4] = { 256u, 256u, 512u, 256u }; // idb
+  Fallout_Release_Beta.exe.c:220985:__thread unsigned __int16 NiXenonSourceTextureData::pTiledTextureLevelOffsetsA[4] = { 8192u, 16384u, 16384u, 8192u }; // idb
+  Fallout_Release_Beta.exe.c:220986:__thread char NiXenonSourceTextureData::pBitsPerPixel[4] = { '\x04', '\b', '\b', '\x04' }; // idb
+  Fallout_Release_Beta.exe.c:220987:__thread unsigned int NiD3DPass::ms_uiMaxTextureBlendStages = 2u; // idb
+  Fallout_Release_Beta.exe.c:220988:__thread unsigned int NiD3DPass::ms_uiMaxSimultaneousTextures = 2u; // idb
+  Fallout_Release_Beta.exe.c:220989:__thread unsigned int NiD3DPass::ms_uiMaxSamplers = 2u; // idb
+  Fallout_Release_Beta.exe.c:220990:__thread NiXenonRenderState::RenderStateInitialValue NiXenonRenderState::ms_akInitialRenderStateSettings[405] =
+  Fallout_Release_Beta.exe.c:220991:{
+  Fallout_Release_Beta.exe.c:220992:  { D3DRS_ZENABLE, 1u },
+  Fallout_Release_Beta.exe.c:2024995:    if ( v57 < v60 )
+  Fallout_Release_Beta.exe.c:2024996:    {
+  Fallout_Release_Beta.exe.c:2024997:      v61 = 2 * v29;
+  Fallout_Release_Beta.exe.c:2024998:      v62 = 3 * v29 + v57 - 3;
+  Fallout_Release_Beta.exe.c:2024999:      v123 = &NiXenonSourceTextureData::pTiledTextureLevelOffsetsA[v29];
+  Fallout_Release_Beta.exe.c:2025000:      v63 = v60 - v57;
+> Fallout_Release_Beta.exe.c:2025001:      v97 = (unsigned int)NiXenonSourceTextureData::pTilingStridesA;
+  Fallout_Release_Beta.exe.c:2025002:      do
+  Fallout_Release_Beta.exe.c:2025003:      {
+  Fallout_Release_Beta.exe.c:2025004:        v64 = 0;
+> Fallout_Release_Beta.exe.c:2025005:        if ( NiXenonSourceTextureData::pTilingRectCountsA[0][v62] > 0 )
+  Fallout_Release_Beta.exe.c:2025006:        {
+  Fallout_Release_Beta.exe.c:2025007:          v65 = v61 + v97;
+  Fallout_Release_Beta.exe.c:2025008:          do
+  Fallout_Release_Beta.exe.c:2025009:          {
+> Fallout_Release_Beta.exe.c:2025010:            v66 = &NiXenonSourceTextureData::pTextureTileRectsA[NiXenonSourceTextureData::pFirstTilingRectsA[0][v62]
+  Fallout_Release_Beta.exe.c:2025011:                                                              + v64];
+  Fallout_Release_Beta.exe.c:2025012:            cBytesWide = v66->cBytesWide;
+  Fallout_Release_Beta.exe.c:2025013:            v68 = v66->cLinesHigh * cBytesWide;
+  Fallout_Release_Beta.exe.c:2025014:            if ( NiXenonSourceTextureData::pUncompressedBuffer )
+  Fallout_Release_Beta.exe.c:2025015:            {
+  Fallout_Release_Beta.exe.c:2025016:              v69 = *(unsigned __int16 *)(v65 - 2);
+  Fallout_Release_Beta.exe.c:2025017:              cByteOffsetX = v66->cByteOffsetX;
+  Fallout_Release_Beta.exe.c:2025018:              v71 = &NiXenonSourceTextureData::pUncompressedBuffer[v106];
+  Fallout_Release_Beta.exe.c:2025044:                v66->cByteOffsetX,
+  Fallout_Release_Beta.exe.c:2025045:                v66->cLineOffsetY,
+  Fallout_Release_Beta.exe.c:2025046:                v66->cBytesWide);
+  Fallout_Release_Beta.exe.c:2025047:            }
+  Fallout_Release_Beta.exe.c:2025048:            ++v64;
+  Fallout_Release_Beta.exe.c:2025049:          }
+> Fallout_Release_Beta.exe.c:2025050:          while ( v64 < NiXenonSourceTextureData::pTilingRectCountsA[0][v62] );
+  Fallout_Release_Beta.exe.c:2025051:        }
+  Fallout_Release_Beta.exe.c:2025052:        --v63;
+  Fallout_Release_Beta.exe.c:2025053:        ++v62;
+  Fallout_Release_Beta.exe.c:2025054:        v58 += *(v123 - 1);
+  Fallout_Release_Beta.exe.c:2025055:      }
+  Fallout_Release_Beta.exe.c:2025056:      while ( v63 );
+  Fallout_Release_Beta.exe.c:2025057:      v31 = v111;
+  Fallout_Release_Beta.exe.c:2025058:      v28 = (void *)v109;
+

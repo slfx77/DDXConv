@@ -109,20 +109,17 @@ namespace DDXConv
             {
                 uint magic = reader.ReadUInt32();
                 
-                if (magic == MAGIC_3XDR)
-                {
-                    throw new InvalidDataException("3XDR files are not yet supported.");
-                }
-                if (magic != MAGIC_3XDO)
+                bool is3xdr = (magic == MAGIC_3XDR);
+                if (!is3xdr && magic != MAGIC_3XDO)
                 {
                     throw new InvalidDataException($"Unknown DDX magic: 0x{magic:X8}.");
                 }
 
-                ConvertDdxToDds(reader, outputPath, options);
+                ConvertDdxToDds(reader, outputPath, options, is3xdr);
             }
         }
 
-        private void ConvertDdxToDds(BinaryReader reader, string outputPath, ConversionOptions options)
+        private void ConvertDdxToDds(BinaryReader reader, string outputPath, ConversionOptions options, bool is3xdr)
         {
             // Read priority bytes (used for degradation)
             byte priorityL = reader.ReadByte();
@@ -336,8 +333,8 @@ namespace DDXConv
                 Console.WriteLine($"Untiling chunk1 ({chunk1Size} bytes) as atlas {atlasWidth}x{atlasHeight} and chunk2 ({chunk2Size} bytes) as main {width}x{height}");
                 
                 // Untile both chunks
-                byte[] untiledAtlas = UnswizzleDXTTexture(chunk1, atlasWidth, atlasHeight, texture.ActualFormat);
-                byte[] untiledMain = UnswizzleDXTTexture(chunk2, width, height, texture.ActualFormat);
+                byte[] untiledAtlas = is3xdr ? chunk1 : UnswizzleDXTTexture(chunk1, atlasWidth, atlasHeight, texture.ActualFormat);
+                byte[] untiledMain = is3xdr ? chunk2 : UnswizzleDXTTexture(chunk2, width, height, texture.ActualFormat);
                 
                 Console.WriteLine($"Untiled both chunks to {untiledAtlas.Length} and {untiledMain.Length} bytes");
                 
@@ -396,7 +393,7 @@ namespace DDXConv
                         // Untile main surface
                         byte[] mainSurfaceTiled = new byte[mainSurfaceSize];
                         Array.Copy(mainData, 0, mainSurfaceTiled, 0, (int)mainSurfaceSize);
-                        byte[] mainSurfaceUntiled = UnswizzleDXTTexture(mainSurfaceTiled, width, height, texture.ActualFormat);
+                        byte[] mainSurfaceUntiled = is3xdr ? mainSurfaceTiled : UnswizzleDXTTexture(mainSurfaceTiled, width, height, texture.ActualFormat);
                         
                         // Process remaining mips sequentially
                         int remainingSize = mainData.Length - (int)mainSurfaceSize;
@@ -433,7 +430,7 @@ namespace DDXConv
                             int mipSize = CalculateMipSize(mipWidth, mipHeight, texture.ActualFormat);
                             byte[] mipTiled = new byte[mipSize];
                             Array.Copy(remainingData, mipOffset, mipTiled, 0, mipSize);
-                            byte[] mipUntiled = UnswizzleDXTTexture(mipTiled, mipWidth, mipHeight, texture.ActualFormat);
+                            byte[] mipUntiled = is3xdr ? mipTiled : UnswizzleDXTTexture(mipTiled, mipWidth, mipHeight, texture.ActualFormat);
                             mipDataList.Add(mipUntiled);
                             mipOffset += mipSize;
                             mipWidth /= 2;
@@ -475,8 +472,8 @@ namespace DDXConv
                             Array.Copy(mainData, 0, chunk1Tiled, 0, horizontalChunk1Size);
                             Array.Copy(mainData, horizontalChunk1Size, chunk2Tiled, 0, horizontalChunk2Size);
                             
-                            byte[] chunk1Untiled = UnswizzleDXTTexture(chunk1Tiled, chunk1Width, chunkHeight, texture.ActualFormat);
-                            byte[] chunk2Untiled = UnswizzleDXTTexture(chunk2Tiled, chunk2Width, chunkHeight, texture.ActualFormat);
+                            byte[] chunk1Untiled = is3xdr ? chunk1Tiled : UnswizzleDXTTexture(chunk1Tiled, chunk1Width, chunkHeight, texture.ActualFormat);
+                            byte[] chunk2Untiled = is3xdr ? chunk2Tiled : UnswizzleDXTTexture(chunk2Tiled, chunk2Width, chunkHeight, texture.ActualFormat);
                             
                             Console.WriteLine($"Untiled chunks: {chunk1Untiled.Length} + {chunk2Untiled.Length} bytes");
                             
@@ -494,7 +491,7 @@ namespace DDXConv
                             byte[] mainSurfaceTiled = new byte[mainSurfaceSize];
                             Array.Copy(mainData, 0, mainSurfaceTiled, 0, (int)mainSurfaceSize);
                         
-                            byte[] mainSurfaceUntiled = UnswizzleDXTTexture(mainSurfaceTiled, width, height, texture.ActualFormat);
+                            byte[] mainSurfaceUntiled = is3xdr ? mainSurfaceTiled : UnswizzleDXTTexture(mainSurfaceTiled, width, height, texture.ActualFormat);
                             Console.WriteLine($"Untiled main surface: {mainSurfaceUntiled.Length} bytes");
                             
                             // The remaining data might be packed mips - try to extract them
@@ -510,7 +507,7 @@ namespace DDXConv
                                 byte[] mipTiled = new byte[remainingSize];
                                 Array.Copy(mainData, (int)mainSurfaceSize, mipTiled, 0, remainingSize);
                                 
-                                byte[] mipUntiled = UnswizzleDXTTexture(mipTiled, width / 2, height / 2, texture.ActualFormat);
+                                byte[] mipUntiled = is3xdr ? mipTiled : UnswizzleDXTTexture(mipTiled, width / 2, height / 2, texture.ActualFormat);
                                 Console.WriteLine($"Untiled mip: {mipUntiled.Length} bytes");
                                 
                                 linearData = new byte[mainSurfaceUntiled.Length + mipUntiled.Length];
@@ -536,7 +533,7 @@ namespace DDXConv
                     Console.WriteLine($"WARNING: Data size smaller than expected: {mainData.Length} < {mainSurfaceSize}");
                     
                     // Untile as a single texture
-                    byte[] untiled = UnswizzleDXTTexture(mainData, width, height, texture.ActualFormat);
+                    byte[] untiled = is3xdr ? mainData : UnswizzleDXTTexture(mainData, width, height, texture.ActualFormat);
                     Console.WriteLine($"Untiled to {untiled.Length} bytes");
                     
                     linearData = untiled;
@@ -554,8 +551,8 @@ namespace DDXConv
                     Array.Copy(mainData, 0, chunk1TiledAlt, 0, mainData.Length / 2);
                     Array.Copy(mainData, mainData.Length / 2, chunk2TiledAlt, 0, mainData.Length / 2);
                     
-                    byte[] chunk1UntiledAlt = UnswizzleDXTTexture(chunk1TiledAlt, width, height, texture.ActualFormat);
-                    byte[] chunk2UntiledAlt = UnswizzleDXTTexture(chunk2TiledAlt, width, height, texture.ActualFormat);
+                    byte[] chunk1UntiledAlt = is3xdr ? chunk1TiledAlt : UnswizzleDXTTexture(chunk1TiledAlt, width, height, texture.ActualFormat);
+                    byte[] chunk2UntiledAlt = is3xdr ? chunk2TiledAlt : UnswizzleDXTTexture(chunk2TiledAlt, width, height, texture.ActualFormat);
                     Console.WriteLine($"Untiled chunks to {chunk1UntiledAlt.Length} + {chunk2UntiledAlt.Length} bytes");
                     
                     // Chunk 1 might have mips packed
@@ -579,8 +576,8 @@ namespace DDXConv
                     Array.Copy(mainData, 0, chunk1Tiled, 0, halfSize);
                     Array.Copy(mainData, halfSize, chunk2Tiled, 0, halfSize);
                     
-                    byte[] chunk1Untiled = UnswizzleDXTTexture(chunk1Tiled, squareSize, squareSize, texture.ActualFormat);
-                    byte[] chunk2Untiled = UnswizzleDXTTexture(chunk2Tiled, squareSize, squareSize, texture.ActualFormat);
+                    byte[] chunk1Untiled = is3xdr ? chunk1Tiled : UnswizzleDXTTexture(chunk1Tiled, squareSize, squareSize, texture.ActualFormat);
+                    byte[] chunk2Untiled = is3xdr ? chunk2Tiled : UnswizzleDXTTexture(chunk2Tiled, squareSize, squareSize, texture.ActualFormat);
                     Console.WriteLine($"Untiled chunks to {chunk1Untiled.Length} + {chunk2Untiled.Length} bytes");
                     
                     // Chunk 1 has mip atlas, chunk 2 has main surface
@@ -616,8 +613,8 @@ namespace DDXConv
                         Array.Copy(mainData, atlasSize128, chunk2, 0, mainSize128);
                         
                         // Untile: atlas is 256x192, main is 128x128
-                        byte[] untiledAtlas = UnswizzleDXTTexture(chunk1, 256, 192, texture.ActualFormat);
-                        byte[] untiledMain = UnswizzleDXTTexture(chunk2, 128, 128, texture.ActualFormat);
+                        byte[] untiledAtlas = is3xdr ? chunk1 : UnswizzleDXTTexture(chunk1, 256, 192, texture.ActualFormat);
+                        byte[] untiledMain = is3xdr ? chunk2 : UnswizzleDXTTexture(chunk2, 128, 128, texture.ActualFormat);
                         
                         Console.WriteLine($"Untiled atlas (256x192) to {untiledAtlas.Length} bytes");
                         Console.WriteLine($"Untiled main (128x128) to {untiledMain.Length} bytes");
