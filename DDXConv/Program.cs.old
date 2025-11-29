@@ -94,251 +94,115 @@ namespace DDXConv
 
         private void ConvertDdxToDds(BinaryReader reader, string outputPath)
         {
-            // Read bytes after magic (from Fallout's CreateFromDDXFile):
-            // Byte 4: priorityL (0x01 = vertical/tall, 0x04 = horizontal/wide or square)
-            // Byte 5: priorityH
-            // Bytes 6-7: version (uint16)
-            byte priorityL = reader.ReadByte();  // This IS the layout indicator!
+            // Read priority bytes (used for degradation)
+            byte priorityL = reader.ReadByte();
+            byte priorityC = reader.ReadByte();
             byte priorityH = reader.ReadByte();
             
+            // Read version
             ushort version = reader.ReadUInt16();
-
-            Console.WriteLine($"Priority L (layout): 0x{priorityL:X2} (01=vertical, 04=horizontal/square), Priority H: 0x{priorityH:X2}, Version: {version}");
 
             if (version < 3)
             {
                 throw new NotSupportedException($"DDX version {version} is not supported. Need version >= 3");
             }
 
-            // After reading version, we're at offset 8
-            // D3DTexture header (52 bytes, 0x34) starts immediately at offset 8
+            // After reading version, we're at offset 0x09
+            // Height is at offset 0x0E, width is at offset 0x3C
+            
+            // Skip to 0x0E (5 bytes: 0x09 to 0x0E)
+            reader.ReadBytes(5);
+            
+            // Read height at 0x0E
+            ushort height = 256; // Hardcoded for now - resolution detection is broken
+            reader.ReadUInt16(); // Skip the broken height value
+            
+            // Now at 0x10, read 52 bytes of texture header (to 0x44)
             byte[] textureHeader = reader.ReadBytes(52);
             
-            // Now at offset 60 (0x3C)
+            // Width is at absolute offset 0x3C = 0x10 + 0x2C (44 bytes into header)
+            ushort width = 256; // Hardcoded for now - resolution detection is broken
             
-            // Parse the D3DTexture header to extract dimensions and format from Format dwords
-            var texture = ParseD3DTextureHeaderWithDimensions(textureHeader, out ushort width, out ushort height);
+            Console.WriteLine($"Dimensions from header (hardcoded): {width}x{height}");
             
-            Console.WriteLine($"Dimensions from D3D texture header: {width}x{height}");
+            var texture = ParseD3DTextureHeader(textureHeader, width, height);
 
-            // For version >= 4, there's an additional size field (from decompiled CreateFromDDXFile)
-            // This field indicates the size of chunk2 (or total size depending on interpretation)
-            uint sizeField = 0;
-            if (version >= 4)
-            {
-                sizeField = reader.ReadUInt32();
-                Console.WriteLine($"Version >= 4: Read size field = {sizeField} bytes");
-            }
-
-            // Read all remaining texture data
+            // For 3XDO files, the texture data starts immediately after the header
+            // There are no separate size fields - just read all remaining data
             long currentPos = reader.BaseStream.Position;
             long fileSize = reader.BaseStream.Length;
             uint remainingBytes = (uint)(fileSize - currentPos);
             
+            // Read all texture data
             byte[] mainData = reader.ReadBytes((int)remainingBytes);
-            
-            // For version >= 4 with sizeField, calculate chunk positions
-            // v100 = sizeField (offset from EOF where chunk2 starts)
-            // chunk1 size = (fileSize - v100) - currentPos
-            // chunk2 size = v100
-            uint chunk1Size = 0;
-            uint chunk2Size = 0;
-            int chunk1Offset = 0;
-            int chunk2Offset = 0;
-            bool chunksDetectedFromHeader = false;
-            
-            if (version >= 4 && sizeField > 0)
-            {
-                chunk2Size = sizeField;
-                chunk1Size = (uint)(fileSize - sizeField - currentPos);
-                chunk1Offset = 0;
-                chunk2Offset = (int)chunk1Size;
-                chunksDetectedFromHeader = true;
-                Console.WriteLine($"Two-chunk format: chunk1={chunk1Size} bytes, chunk2={chunk2Size} bytes");
-            }
-            else
-            {
-                chunk1Size = remainingBytes;
-                chunk1Offset = 0;
-                Console.WriteLine($"Single-chunk format: {chunk1Size} bytes");
-            }
-            
-            // Each chunk might have a 4-byte header before the XMemCompress data
-            // Skip the first 4 bytes of each chunk if they don't look like XMemCompress magic
-            if (chunk1Size > 4 && mainData[chunk1Offset] != 0xFF && mainData[chunk1Offset] != 0x0F)
-            {
-                Console.WriteLine($"Chunk1: Skipping 4-byte header at offset {chunk1Offset}");
-                chunk1Offset += 4;
-                chunk1Size -= 4;
-            }
             
             // Calculate total expected size: atlas (2x resolution) + linear mips
             // Use ActualFormat instead of DataFormat for correct size calculation
             uint atlasSize = (uint)CalculateMipSize(width, height, texture.ActualFormat);
             uint linearDataSize = CalculateMainDataSize(width, height, texture.ActualFormat, CalculateMipLevels(width, height));
             
-            // Decompress chunks
-            byte[] chunk1Data = null;
-            byte[] chunk2Data = null;
-            
-            if (chunk1Size > 0)
-            {
-                byte[] chunk1Compressed = new byte[chunk1Size];
-                Array.Copy(mainData, chunk1Offset, chunk1Compressed, 0, chunk1Size);
+            //// Check if data is XCompress compressed (starts with 0xFF or 0x0F)
+            //if (mainData.Length > 0 && (mainData[0] == 0xFF || mainData[0] == 0x0F))
+            //{
+            //    Console.WriteLine($"Detected XCompress compression, decompressing...");
                 
-                // Estimate decompressed size - for chunk1 (mip atlas), use atlasSize
-                uint estimatedSize = Math.Max(atlasSize, 65536);
-                Console.WriteLine($"Decompressing chunk1: {chunk1Size} compressed bytes, estimated {estimatedSize} decompressed");
-                chunk1Data = DecompressXMemCompress(chunk1Compressed, estimatedSize, out int consumed1);
-                Console.WriteLine($"Chunk1: consumed {consumed1} compressed bytes, got {chunk1Data.Length} decompressed bytes");
-            }
-            
-            if (chunk2Size > 0)
-            {
-                int chunk2OffsetActual = chunk2Offset;
-                uint chunk2SizeActual = chunk2Size;
-                bool skipDecompression = false;
+                // Decompress all chunks in sequence
+                byte[] compressedData = mainData;
+                List<byte[]> decompressedChunks = new List<byte[]>();
+                int totalConsumed = 0;
                 
-                // Check if chunk2 looks like it might be raw/uncompressed data
-                // If it doesn't start with XMemCompress magic and skipping 4 bytes doesn't help, it might be raw
-                if (chunk2Size > 4 && mainData[chunk2Offset] != 0xFF && mainData[chunk2Offset] != 0x0F)
+                // Try to decompress first chunk
+                byte[] firstChunk = DecompressXMemCompress(compressedData, atlasSize, out int firstChunkCompressedSize);
+                Console.WriteLine($"Chunk 1: consumed {firstChunkCompressedSize} compressed bytes, got {firstChunk.Length} decompressed bytes");
+                decompressedChunks.Add(firstChunk);
+                totalConsumed += firstChunkCompressedSize;
+                
+                // Try to decompress additional chunks until we run out of data
+                while (totalConsumed < compressedData.Length)
                 {
-                    // Check if byte 4 has the magic
-                    if (mainData[chunk2Offset + 4] == 0xFF || mainData[chunk2Offset + 4] == 0x0F)
+                    int offset = totalConsumed;
+                    int remainingSize = compressedData.Length - offset;
+                    
+                    if (remainingSize < 10) // Need at least some bytes for a valid XMemCompress chunk
+                        break;
+                    
+                    Console.WriteLine($"Attempting to decompress chunk {decompressedChunks.Count + 1} at offset {offset} ({remainingSize} bytes remaining)");
+                    
+                    try
                     {
-                        Console.WriteLine($"Chunk2: Skipping 4-byte header at offset {chunk2Offset}");
-                        chunk2OffsetActual += 4;
-                        chunk2SizeActual -= 4;
+                        byte[] remainingCompressed = new byte[remainingSize];
+                        Array.Copy(compressedData, offset, remainingCompressed, 0, remainingSize);
+                        
+                        byte[] chunk = DecompressXMemCompress(remainingCompressed, atlasSize, out int chunkCompressedSize);
+                        Console.WriteLine($"Chunk {decompressedChunks.Count + 1}: consumed {chunkCompressedSize} compressed bytes, got {chunk.Length} decompressed bytes");
+                        decompressedChunks.Add(chunk);
+                        totalConsumed += chunkCompressedSize;
+                        
+                        if (chunkCompressedSize == 0)
+                            break; // Avoid infinite loop if nothing was consumed
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        // Doesn't look compressed - might be raw data
-                        Console.WriteLine($"Chunk2: No XMemCompress magic found, treating as raw data");
-                        skipDecompression = true;
+                        Console.WriteLine($"Failed to decompress chunk {decompressedChunks.Count + 1}: {ex.Message}");
+                        break;
                     }
                 }
                 
-                byte[] chunk2Compressed = new byte[chunk2SizeActual];
-                Array.Copy(mainData, chunk2OffsetActual, chunk2Compressed, 0, chunk2SizeActual);
-                
-                if (skipDecompression)
+                // Combine all decompressed chunks
+                int totalDecompressed = decompressedChunks.Sum(c => c.Length);
+                mainData = new byte[totalDecompressed];
+                int writeOffset = 0;
+                for (int i = 0; i < decompressedChunks.Count; i++)
                 {
-                    // Use raw data directly
-                    chunk2Data = chunk2Compressed;
-                    Console.WriteLine($"Chunk2: Using {chunk2Data.Length} bytes as raw data");
+                    Array.Copy(decompressedChunks[i], 0, mainData, writeOffset, decompressedChunks[i].Length);
+                    writeOffset += decompressedChunks[i].Length;
                 }
-                else
-                {
-                    // For chunk2 (main surface), use linearDataSize
-                    uint estimatedSize = Math.Max(linearDataSize, 524288);
-                    Console.WriteLine($"Decompressing chunk2: {chunk2SizeActual} compressed bytes, estimated {estimatedSize} decompressed");
-                    chunk2Data = DecompressXMemCompress(chunk2Compressed, estimatedSize, out int consumed2);
-                    Console.WriteLine($"Chunk2: consumed {consumed2} compressed bytes, got {chunk2Data.Length} decompressed bytes");
-                }
-            }
-            
-            // Combine chunks
-            byte[] combinedData;
-            if (chunk1Data != null && chunk2Data != null)
-            {
-                combinedData = new byte[chunk1Data.Length + chunk2Data.Length];
-                Array.Copy(chunk1Data, 0, combinedData, 0, chunk1Data.Length);
-                Array.Copy(chunk2Data, 0, combinedData, chunk1Data.Length, chunk2Data.Length);
-                Console.WriteLine($"Combined 2 chunks = {combinedData.Length} bytes total");
-            }
-            else if (chunk1Data != null)
-            {
-                combinedData = chunk1Data;
-                Console.WriteLine($"Single chunk = {combinedData.Length} bytes");
-            }
-            else
-            {
-                throw new InvalidDataException("No data decompressed");
-            }
-            
-            mainData = combinedData;
+                Console.WriteLine($"Combined {decompressedChunks.Count} chunks = {mainData.Length} bytes total (consumed {totalConsumed}/{compressedData.Length} compressed bytes)");
                 
                 // Save raw combined data for analysis
                 string rawPath = outputPath.Replace(".dds", "_raw.bin");
                 File.WriteAllBytes(rawPath, mainData);
                 Console.WriteLine($"Saved raw combined data to {rawPath}");
-                
-                // Only try to detect dimensions if header didn't provide valid ones
-                if (width == 0 || height == 0)
-                {
-                    // Calculate actual dimensions from decompressed size and format
-                    int detectionBlockSize = texture.ActualFormat == 0x52 || texture.ActualFormat == 0x7B ? 8 : 16;
-                    int detectionTotalBlocks = mainData.Length / detectionBlockSize;
-                    Console.WriteLine($"Dimension detection: {mainData.Length} bytes / {detectionBlockSize} bytes/block = {detectionTotalBlocks} blocks");
-                    
-                    // Try to find square or wider-than-tall dimensions
-                    // First try square dimensions (most common), then rectangular
-                    int detectedWidth = 0, detectedHeight = 0;
-                    
-                    // Pass 1: Try square dimensions only
-                    for (int testSize = 4096; testSize >= 128; testSize /= 2)
-                    {
-                        int blocksWide = testSize / 4;
-                        int blocksHigh = testSize / 4;
-                        int expectedBlocks = blocksWide * blocksHigh;
-                        
-                        // Check if this matches (allowing for 2-chunk atlas format or main+mips)
-                        if (expectedBlocks * 2 == detectionTotalBlocks || 
-                            expectedBlocks == detectionTotalBlocks ||
-                            (detectionTotalBlocks >= expectedBlocks && detectionTotalBlocks <= expectedBlocks * 3 / 2))
-                        {
-                            detectedWidth = testSize;
-                            detectedHeight = testSize;
-                            Console.WriteLine($"Match found (square): {testSize}x{testSize} = {expectedBlocks} blocks (got {detectionTotalBlocks})");
-                            break;
-                        }
-                    }
-                    
-                    // Pass 2: If no square match, try rectangular (2:1 max ratio)
-                    if (detectedWidth == 0)
-                    {
-                        for (int testWidth = 4096; testWidth >= 256; testWidth /= 2)
-                        {
-                            for (int testHeight = testWidth / 2; testHeight >= 128; testHeight /= 2)
-                            {
-                                int blocksWide = testWidth / 4;
-                                int blocksHigh = testHeight / 4;
-                                int expectedBlocks = blocksWide * blocksHigh;
-                                
-                                if (expectedBlocks * 2 == detectionTotalBlocks || 
-                                    expectedBlocks == detectionTotalBlocks ||
-                                    (detectionTotalBlocks >= expectedBlocks && detectionTotalBlocks <= expectedBlocks * 3 / 2))
-                                {
-                                    detectedWidth = testWidth;
-                                    detectedHeight = testHeight;
-                                    Console.WriteLine($"Match found (rectangular): {testWidth}x{testHeight} = {expectedBlocks} blocks (got {detectionTotalBlocks})");
-                                    break;
-                                }
-                            }
-                            if (detectedWidth > 0) break;
-                        }
-                    }
-                    
-                    if (detectedWidth > 0)
-                    {
-                        Console.WriteLine($"Detected dimensions from data size: {detectedWidth}x{detectedHeight}");
-                        width = (ushort)detectedWidth;
-                        height = (ushort)detectedHeight;
-                        texture.Width = width;
-                        texture.Height = height;
-                        
-                        // Recalculate atlas size with new dimensions
-                        atlasSize = (uint)CalculateMipSize(width, height, texture.ActualFormat);
-                        Console.WriteLine($"Recalculated atlasSize: {atlasSize} bytes for {width}x{height}");
-                    }
-                }
-                else
-                {
-                    Console.WriteLine($"Using dimensions from header: {width}x{height}");
-                    // Recalculate atlas size with header dimensions
-                    atlasSize = (uint)CalculateMipSize(width, height, texture.ActualFormat);
-                    Console.WriteLine($"Calculated atlasSize: {atlasSize} bytes for {width}x{height}");
-                }
             //}
             //else
             //{
@@ -348,98 +212,37 @@ namespace DDXConv
             //    Console.WriteLine($"Saved raw data to {rawPath}");
             //}
             
-            // Calculate expected main surface size with detected dimensions
+            // Calculate expected main surface size
             uint mainSurfaceSize = (uint)CalculateMipSize(width, height, texture.ActualFormat);
             
             byte[] linearData;
             
             // Check if we have two chunks or one chunk
-            // Two chunk format can be:
-            // 1. Exactly 2x atlasSize (for small textures like 128x128 or 256x256)
-            // 2. Main surface + smaller mip atlas (for large textures like 1024x1024)
-            bool isTwoChunkFormat = false;
-            // Old detection system - skip if we already detected chunks from header
-            if (!chunksDetectedFromHeader)
+            if (mainData.Length >= atlasSize * 2)
             {
-                if (mainData.Length == atlasSize * 2)
-                {
-                    // Small texture: two equal-sized chunks
-                    isTwoChunkFormat = true;
-                    chunk1Size = atlasSize;
-                    chunk2Size = atlasSize;
-                }
-                else if (width >= 512 && height >= 512 && mainData.Length > mainSurfaceSize)
-                {
-                    // Large texture: check if we have main surface + mip atlas
-                    // Mip atlas size = sum of all mips from width/2 down to 4x4
-                    // For 1024x1024 DXT1: mips are 512,256,128,64,32,16,8,4 = 131072+32768+8192+2048+512+128+32+8 = 174760
-                    // But atlas layout adds padding, so actual could be 512x384 = 196608
-                    int remainingSize = mainData.Length - (int)mainSurfaceSize;
-                    
-                    // Calculate expected mip atlas dimensions (width/2 x height*3/4)
-                    int atlasWidth = width / 2;
-                    int atlasHeight = height * 3 / 4;
-                    int expectedAtlasSize = CalculateMipSize(atlasWidth, atlasHeight, texture.ActualFormat);
-                    
-                    Console.WriteLine($"Checking for two-chunk format: {mainData.Length} bytes, main={mainSurfaceSize}, remaining={remainingSize}, expected atlas={expectedAtlasSize}");
-                    
-                    if (Math.Abs(remainingSize - expectedAtlasSize) < 1000)
-                    {
-                        isTwoChunkFormat = true;
-                        chunk1Size = (uint)remainingSize;
-                        chunk2Size = (uint)mainSurfaceSize;
-                        Console.WriteLine($"Detected large texture two-chunk format: atlas={chunk1Size} + main={chunk2Size}");
-                    }
-                }
-            }
-            
-            if (isTwoChunkFormat)
-            {
-                // Two-chunk format
-                // chunk1Size and chunk2Size were set by detection above
-                // For large textures: chunk1 (smaller) = mip atlas, chunk2 (larger) = main surface
-                // For small textures: chunk1 = mip atlas, chunk2 = main surface (same sizes)
-                Console.WriteLine($"Two-chunk format confirmed ({mainData.Length} bytes)");
+                // Two-chunk format: chunk1 = mip atlas, chunk2 = main surface
+                Console.WriteLine($"Two-chunk format detected ({mainData.Length} bytes)");
                 
-                byte[] chunk1 = new byte[chunk1Size];
-                byte[] chunk2 = new byte[chunk2Size];
-                Array.Copy(mainData, 0, chunk1, 0, chunk1Size);
-                Array.Copy(mainData, chunk1Size, chunk2, 0, chunk2Size);
-                
-                // Determine atlas dimensions
-                int atlasWidth, atlasHeight;
-                
-                if (width <= 256)
-                {
-                    // Small texture: atlas same size as main
-                    atlasWidth = width;
-                    atlasHeight = height;
-                }
-                else
-                {
-                    // Large texture: atlas is ALSO the main dimensions (1024x1024 atlas for 1024x1024 texture)
-                    // The mips are packed within this 1024x1024 space
-                    atlasWidth = width;
-                    atlasHeight = height;
-                }
-                
-                Console.WriteLine($"Untiling chunk1 ({chunk1Size} bytes) as atlas {atlasWidth}x{atlasHeight} and chunk2 ({chunk2Size} bytes) as main {width}x{height}");
+                byte[] chunk1 = new byte[atlasSize];
+                byte[] chunk2 = new byte[atlasSize];
+                Array.Copy(mainData, 0, chunk1, 0, (int)atlasSize);
+                Array.Copy(mainData, (int)atlasSize, chunk2, 0, (int)atlasSize);
                 
                 // Untile both chunks
-                byte[] untiledAtlas = UnswizzleDXTTexture(chunk1, atlasWidth, atlasHeight, texture.ActualFormat);
-                byte[] untiledMain = UnswizzleDXTTexture(chunk2, width, height, texture.ActualFormat);
+                byte[] untiledChunk1 = UnswizzleDXTTexture(chunk1, width, height, texture.ActualFormat);
+                byte[] untiledChunk2 = UnswizzleDXTTexture(chunk2, width, height, texture.ActualFormat);
                 
-                Console.WriteLine($"Untiled both chunks to {untiledAtlas.Length} and {untiledMain.Length} bytes");
+                Console.WriteLine($"Untiled both chunks to {untiledChunk1.Length} and {untiledChunk2.Length} bytes");
                 
-                // Extract mips from atlas
-                byte[] mips = UnpackMipAtlas(untiledAtlas, atlasWidth, atlasHeight, texture.ActualFormat);
-                Console.WriteLine($"Extracted {mips.Length} bytes of mips from atlas");
+                // Chunk 2 is the main surface, chunk 1 contains mip atlas
+                byte[] mips = UnpackMipAtlas(untiledChunk1, width, height, texture.ActualFormat);
+                Console.WriteLine($"Extracted {mips.Length} bytes of mips from chunk 1");
                 
-                linearData = new byte[untiledMain.Length + mips.Length];
-                Array.Copy(untiledMain, 0, linearData, 0, untiledMain.Length);
-                Array.Copy(mips, 0, linearData, untiledMain.Length, mips.Length);
+                linearData = new byte[untiledChunk2.Length + mips.Length];
+                Array.Copy(untiledChunk2, 0, linearData, 0, untiledChunk2.Length);
+                Array.Copy(mips, 0, linearData, untiledChunk2.Length, mips.Length);
                 
-                Console.WriteLine($"Combined {untiledMain.Length} bytes main surface + {mips.Length} bytes mips = {linearData.Length} total");
+                Console.WriteLine($"Combined {untiledChunk2.Length} bytes main surface + {mips.Length} bytes mips = {linearData.Length} total");
             }
             else
             {
@@ -458,149 +261,91 @@ namespace DDXConv
                 // Check if we have more data than just the main surface (partial mips)
                 if (mainData.Length > mainSurfaceSize)
                 {
-                    // Has partial mips
+                    // Has partial mips - but don't split yet, the data might be interleaved
+                    // Try untiling the entire data as a single texture first
                     Console.WriteLine($"Detected extra data: {mainData.Length} > {mainSurfaceSize}");
+                    Console.WriteLine($"Attempting to untile entire {mainData.Length} bytes as single texture");
                     
-                    // Check if this is large texture (>=512) with sequential mips
-                    if (width >= 512 && height >= 512)
+                    // Calculate what dimensions would fit this data
+                    uint totalSize = (uint)mainData.Length;
+                    int blockSize = (texture.ActualFormat == 0x82 || texture.ActualFormat == 0x52 || texture.ActualFormat == 0x7B) ? 8 : 16;
+                    uint totalBlocks = totalSize / (uint)blockSize;
+                    
+                    // For 81920 bytes of DXT5: 81920/16 = 5120 blocks
+                    // Chunk 1 (49152 bytes) = 3072 blocks = 192x256
+                    // Chunk 2 (32768 bytes) = 2048 blocks = 64x256
+                    // Together: 256x256!
+                    
+                    // The chunks might be split horizontally - try to determine split point
+                    // For a 256x256 texture split into 192x256 + 64x256:
+                    int chunk1Width = 192;
+                    int chunk2Width = 64;
+                    int chunkHeight = 256;
+                    
+                    int chunk1Size = CalculateMipSize(chunk1Width, chunkHeight, texture.ActualFormat);
+                    int chunk2Size = mainData.Length - chunk1Size;
+                    
+                    Console.WriteLine($"Trying horizontal split: {chunk1Width}x{chunkHeight} ({chunk1Size} bytes) + {chunk2Width}x{chunkHeight} ({chunk2Size} bytes)");
+                    
+                    if (chunk1Size + chunk2Size == mainData.Length && chunk2Size > 0)
                     {
-                        Console.WriteLine($"Large texture detected - treating extra as sequential mip data");
+                        byte[] chunk1Tiled = new byte[chunk1Size];
+                        byte[] chunk2Tiled = new byte[chunk2Size];
+                        Array.Copy(mainData, 0, chunk1Tiled, 0, chunk1Size);
+                        Array.Copy(mainData, chunk1Size, chunk2Tiled, 0, chunk2Size);
                         
-                        // Untile main surface
-                        byte[] mainSurfaceTiled = new byte[mainSurfaceSize];
-                        Array.Copy(mainData, 0, mainSurfaceTiled, 0, (int)mainSurfaceSize);
-                        byte[] mainSurfaceUntiled = UnswizzleDXTTexture(mainSurfaceTiled, width, height, texture.ActualFormat);
+                        byte[] chunk1Untiled = UnswizzleDXTTexture(chunk1Tiled, chunk1Width, chunkHeight, texture.ActualFormat);
+                        byte[] chunk2Untiled = UnswizzleDXTTexture(chunk2Tiled, chunk2Width, chunkHeight, texture.ActualFormat);
                         
-                        // Process remaining mips sequentially
-                        int remainingSize = mainData.Length - (int)mainSurfaceSize;
-                        byte[] remainingData = new byte[remainingSize];
-                        Array.Copy(mainData, (int)mainSurfaceSize, remainingData, 0, remainingSize);
+                        Console.WriteLine($"Untiled chunks: {chunk1Untiled.Length} + {chunk2Untiled.Length} bytes");
                         
-                        // Calculate how many mip levels we have
-                        int mipLevels = 1;
-                        int processedMipData = 0;
-                        int mipWidth = width / 2;
-                        int mipHeight = height / 2;
-                        
-                        while (mipWidth >= 4 && mipHeight >= 4 && processedMipData < remainingSize)
-                        {
-                            int mipSize = CalculateMipSize(mipWidth, mipHeight, texture.ActualFormat);
-                            if (processedMipData + mipSize > remainingSize) break;
-                            processedMipData += mipSize;
-                            mipLevels++;
-                            mipWidth /= 2;
-                            mipHeight /= 2;
-                        }
-                        
-                        Console.WriteLine($"Found {mipLevels} mip levels (main + {mipLevels-1} mips)");
-                        
-                        // Untile each mip sequentially
-                        List<byte[]> mipDataList = new List<byte[]>();
-                        mipDataList.Add(mainSurfaceUntiled);
-                        
-                        int mipOffset = 0;
-                        mipWidth = width / 2;
-                        mipHeight = height / 2;
-                        for (int i = 1; i < mipLevels; i++)
-                        {
-                            int mipSize = CalculateMipSize(mipWidth, mipHeight, texture.ActualFormat);
-                            byte[] mipTiled = new byte[mipSize];
-                            Array.Copy(remainingData, mipOffset, mipTiled, 0, mipSize);
-                            byte[] mipUntiled = UnswizzleDXTTexture(mipTiled, mipWidth, mipHeight, texture.ActualFormat);
-                            mipDataList.Add(mipUntiled);
-                            mipOffset += mipSize;
-                            mipWidth /= 2;
-                            mipHeight /= 2;
-                        }
-                        
-                        // Combine all mips
-                        int totalSize = mipDataList.Sum(m => m.Length);
-                        linearData = new byte[totalSize];
-                        int offset = 0;
-                        foreach (var mip in mipDataList)
-                        {
-                            Array.Copy(mip, 0, linearData, offset, mip.Length);
-                            offset += mip.Length;
-                        }
-                        texture.MipLevels = (byte)mipLevels;
+                        // Now we need to interleave these horizontally to form 256x256
+                        // chunk1 is left 192 pixels, chunk2 is right 64 pixels
+                        linearData = InterleaveHorizontalChunks(chunk1Untiled, chunk2Untiled, chunk1Width, chunk2Width, chunkHeight, texture.ActualFormat);
+                        Console.WriteLine($"Interleaved to {linearData.Length} bytes");
+                        texture.MipLevels = 1;
                         Console.WriteLine($"Set MipLevels to {texture.MipLevels}");
                     }
                     else
                     {
-                        // Small texture - might use horizontal split for 256x256
-                        Console.WriteLine($"Attempting horizontal split for small texture");
+                        // Fallback: try untiling just the main surface portion
+                        Console.WriteLine($"Horizontal split didn't match, trying simple split at mainSurfaceSize");
+                        byte[] mainSurfaceTiled = new byte[mainSurfaceSize];
+                        Array.Copy(mainData, 0, mainSurfaceTiled, 0, (int)mainSurfaceSize);
+                    
+                        byte[] mainSurfaceUntiled = UnswizzleDXTTexture(mainSurfaceTiled, width, height, texture.ActualFormat);
+                        Console.WriteLine($"Untiled main surface: {mainSurfaceUntiled.Length} bytes");
                         
-                        // The chunks might be split horizontally - try to determine split point
-                        // For a 256x256 texture split into 192x256 + 64x256:
-                        int chunk1Width = 192;
-                        int chunk2Width = 64;
-                        int chunkHeight = 256;
+                        // The remaining data might be packed mips - try to extract them
+                        int remainingSize = mainData.Length - (int)mainSurfaceSize;
+                        Console.WriteLine($"Remaining data: {remainingSize} bytes (might be packed mips)");
+                    
+                    // For a 128x128 mip: 16384 bytes
+                    // Check if we have exactly one mip's worth
+                    int expectedMip1Size = CalculateMipSize(width / 2, height / 2, texture.ActualFormat);
+                    if (remainingSize == expectedMip1Size)
+                    {
+                        Console.WriteLine($"Remaining data matches 128x128 mip size, extracting...");
+                        byte[] mipTiled = new byte[remainingSize];
+                        Array.Copy(mainData, (int)mainSurfaceSize, mipTiled, 0, remainingSize);
                         
-                        int horizontalChunk1Size = CalculateMipSize(chunk1Width, chunkHeight, texture.ActualFormat);
-                        int horizontalChunk2Size = mainData.Length - horizontalChunk1Size;
+                        byte[] mipUntiled = UnswizzleDXTTexture(mipTiled, width / 2, height / 2, texture.ActualFormat);
+                        Console.WriteLine($"Untiled mip: {mipUntiled.Length} bytes");
                         
-                        Console.WriteLine($"Trying horizontal split: {chunk1Width}x{chunkHeight} ({horizontalChunk1Size} bytes) + {chunk2Width}x{chunkHeight} ({horizontalChunk2Size} bytes)");
-                        
-                        if (horizontalChunk1Size + horizontalChunk2Size == mainData.Length && horizontalChunk2Size > 0)
-                        {
-                            byte[] chunk1Tiled = new byte[horizontalChunk1Size];
-                            byte[] chunk2Tiled = new byte[horizontalChunk2Size];
-                            Array.Copy(mainData, 0, chunk1Tiled, 0, horizontalChunk1Size);
-                            Array.Copy(mainData, horizontalChunk1Size, chunk2Tiled, 0, horizontalChunk2Size);
-                            
-                            byte[] chunk1Untiled = UnswizzleDXTTexture(chunk1Tiled, chunk1Width, chunkHeight, texture.ActualFormat);
-                            byte[] chunk2Untiled = UnswizzleDXTTexture(chunk2Tiled, chunk2Width, chunkHeight, texture.ActualFormat);
-                            
-                            Console.WriteLine($"Untiled chunks: {chunk1Untiled.Length} + {chunk2Untiled.Length} bytes");
-                            
-                            // Now we need to interleave these horizontally to form 256x256
-                            // chunk1 is left 192 pixels, chunk2 is right 64 pixels
-                            linearData = InterleaveHorizontalChunks(chunk1Untiled, chunk2Untiled, chunk1Width, chunk2Width, chunkHeight, texture.ActualFormat);
-                            Console.WriteLine($"Interleaved to {linearData.Length} bytes");
-                            texture.MipLevels = 1;
-                            Console.WriteLine($"Set MipLevels to {texture.MipLevels}");
-                        }
-                        else
-                        {
-                            // Fallback: try untiling just the main surface portion
-                            Console.WriteLine($"Horizontal split didn't match, trying simple split at mainSurfaceSize");
-                            byte[] mainSurfaceTiled = new byte[mainSurfaceSize];
-                            Array.Copy(mainData, 0, mainSurfaceTiled, 0, (int)mainSurfaceSize);
-                        
-                            byte[] mainSurfaceUntiled = UnswizzleDXTTexture(mainSurfaceTiled, width, height, texture.ActualFormat);
-                            Console.WriteLine($"Untiled main surface: {mainSurfaceUntiled.Length} bytes");
-                            
-                            // The remaining data might be packed mips - try to extract them
-                            int remainingSize = mainData.Length - (int)mainSurfaceSize;
-                            Console.WriteLine($"Remaining data: {remainingSize} bytes (might be packed mips)");
-                        
-                            // For a 128x128 mip: 16384 bytes
-                            // Check if we have exactly one mip's worth
-                            int expectedMip1Size = CalculateMipSize(width / 2, height / 2, texture.ActualFormat);
-                            if (remainingSize == expectedMip1Size)
-                            {
-                                Console.WriteLine($"Remaining data matches 128x128 mip size, extracting...");
-                                byte[] mipTiled = new byte[remainingSize];
-                                Array.Copy(mainData, (int)mainSurfaceSize, mipTiled, 0, remainingSize);
-                                
-                                byte[] mipUntiled = UnswizzleDXTTexture(mipTiled, width / 2, height / 2, texture.ActualFormat);
-                                Console.WriteLine($"Untiled mip: {mipUntiled.Length} bytes");
-                                
-                                linearData = new byte[mainSurfaceUntiled.Length + mipUntiled.Length];
-                                Array.Copy(mainSurfaceUntiled, 0, linearData, 0, mainSurfaceUntiled.Length);
-                                Array.Copy(mipUntiled, 0, linearData, mainSurfaceUntiled.Length, mipUntiled.Length);
-                                texture.MipLevels = 2;
-                            }
-                            else
-                            {
-                                // Don't know the layout, just use main surface
-                                Console.WriteLine($"WARNING: Unknown mip layout, using only main surface");
-                                linearData = mainSurfaceUntiled;
-                                texture.MipLevels = 1;
-                            }
-                            
-                            Console.WriteLine($"Set MipLevels to {texture.MipLevels}");
-                        }
+                        linearData = new byte[mainSurfaceUntiled.Length + mipUntiled.Length];
+                        Array.Copy(mainSurfaceUntiled, 0, linearData, 0, mainSurfaceUntiled.Length);
+                        Array.Copy(mipUntiled, 0, linearData, mainSurfaceUntiled.Length, mipUntiled.Length);
+                        texture.MipLevels = 2;
+                    }
+                    else
+                    {
+                        // Don't know the layout, just use main surface
+                        Console.WriteLine($"WARNING: Unknown mip layout, using only main surface");
+                        linearData = mainSurfaceUntiled;
+                        texture.MipLevels = 1;
+                    }
+                    
+                    Console.WriteLine($"Set MipLevels to {texture.MipLevels}");
                     }
                 }
                 else if (mainData.Length < mainSurfaceSize)
@@ -824,42 +569,10 @@ namespace DDXConv
             return decompressedData;
         }
 
-        private D3DTextureInfo ParseD3DTextureHeaderWithDimensions(byte[] header, out ushort width, out ushort height)
-        {
-            // Xbox 360 D3D texture header structure (52 bytes):
-            // Offset 0-23: D3DResource (Common, RefCount, Fence, ReadFence, Identifier, BaseFlush)
-            // Offset 24-27: MipFlush  
-            // Offset 28-51: Format (xe_gpu_texture_fetch_t, 6 dwords = 24 bytes)
-            //
-            // Format structure (from Xenia xenos.h):
-            //   dword_0: pitch, tiling, clamp modes
-            //   dword_1: format (bits 0-5), endianness, base_address
-            //   dword_2: size_2d { width:13, height:13, stack_depth:6 }
-            //   dword_3-5: swizzle, mip info, etc.
-            //
-            // IMPORTANT: Xbox 360 is big-endian, so Format dwords must be read as big-endian!
-            
-            // Extract Format dword_2 (size_2d) at offset 36 (28 + 8)
-            byte[] dword2Bytes = new byte[4];
-            Array.Copy(header, 36, dword2Bytes, 0, 4);
-            Array.Reverse(dword2Bytes); // Convert from big-endian to little-endian
-            uint dword2 = BitConverter.ToUInt32(dword2Bytes, 0);
-            
-            // Decode size_2d structure (dimensions stored as size-1):
-            // Bits 0-12: width - 1
-            // Bits 13-25: height - 1  
-            // Bits 26-31: stack_depth
-            width = (ushort)((dword2 & 0x1FFF) + 1);
-            height = (ushort)(((dword2 >> 13) & 0x1FFF) + 1);
-            
-            // Now parse the rest using the existing method
-            return ParseD3DTextureHeader(header, width, height);
-        }
-
         private D3DTextureInfo ParseD3DTextureHeader(byte[] header, ushort width, ushort height)
         {
             // Xbox 360 D3D texture header structure
-            // Dimensions are passed separately - they're extracted from Format dword_2
+            // Dimensions are passed separately as they're at fixed file offsets
             
             var info = new D3DTextureInfo();
 
@@ -867,32 +580,28 @@ namespace DDXConv
             info.Width = width;
             info.Height = height;
             
-            // Format (xe_gpu_texture_fetch_t) is at offset 28 (24 bytes base + 4 bytes MipFlush)
-            // Xbox 360 is big-endian, so we must reverse bytes when reading dwords
+            // Based on Common and MipFlush being first 8 bytes,
+            // GPUTEXTURE_FETCH_CONSTANT should be at offset 8
             uint[] formatDwords = new uint[6];
             for (int i = 0; i < 6; i++)
             {
-                byte[] dwordBytes = new byte[4];
-                Array.Copy(header, 28 + i * 4, dwordBytes, 0, 4);
-                Array.Reverse(dwordBytes); // Big-endian to little-endian
-                formatDwords[i] = BitConverter.ToUInt32(dwordBytes, 0);
+                formatDwords[i] = BitConverter.ToUInt32(header, 8 + i * 4);
             }
             
             uint dword0 = formatDwords[0];
-            uint dword1 = formatDwords[1];
+            uint dword3 = formatDwords[3];
             uint dword4 = formatDwords[4];
 
-            // Format is in dword_1 bits 0-5 (from Xenia xenos.h)
-            info.DataFormat = dword1 & 0x3F;
+            // The format appears to be in DWORD[3] byte 0 (bits 0-7)
+            // But for format 0x82, the actual texture format (DXT1/DXT5) is in DWORD[4] byte 3
+            info.DataFormat = dword3 & 0xFF;
             
-            // For some formats, check DWORD[4] for additional format info
+            // For 0x82 textures, check DWORD[4] high byte to distinguish DXT1 from DXT5
             uint actualFormat = (dword4 >> 24) & 0xFF;
-            Console.WriteLine($"Format detection: DataFormat=0x{info.DataFormat:X2}, DWORD[4]=0x{dword4:08X}, ActualFormat=0x{actualFormat:X2}");
+            Console.WriteLine($"Format detection: DataFormat=0x{info.DataFormat:X2}, DWORD[4]=0x{dword4:X8}, ActualFormat=0x{actualFormat:X2}");
             
-            // Endianness is in dword_1 bits 6-7
-            info.Endian = (dword1 >> 6) & 0x3;
-            // Tiled is in dword_0 bit 31
-            info.Tiled = ((dword0 >> 31) & 1) != 0;
+            info.Endian = (dword0 >> 26) & 0x3;
+            info.Tiled = ((dword0 >> 19) & 1) != 0;
 
             // Store the actual format for untiling
             info.ActualFormat = actualFormat != 0 ? actualFormat : info.DataFormat;
@@ -912,17 +621,23 @@ namespace DDXConv
         private uint GetDxgiFormat(uint gpuFormat)
         {
             // Map Xbox 360 GPU texture formats to D3D formats
-            // Note: gpuFormat values are from Xenia's TextureFormat enum (6-bit field from dword_1)
+            // For 0x82 base format, the actual format is determined by DWORD[4]
             
             return gpuFormat switch
             {
-                0x12 => 0x31545844, // k_DXT1 (18) - DXT1
-                0x13 => 0x33545844, // k_DXT2_3 (19) - DXT3  
-                0x14 => 0x35545844, // k_DXT4_5 (20) - DXT5
-                0x3A => 0x32495441, // k_DXT3A (58) - ATI2/BC5 normal maps
-                0x3B => 0x31495441, // k_DXT5A (59) - ATI1/BC4 single channel (specular maps)
-                0x06 => 0x18280046, // k_8_8_8_8 (6) -> A8R8G8B8
-                0x04 => 0x28280044, // k_5_6_5 (4) -> R5G6B5
+                0x52 => 0x31545844, // DXT1
+                0x53 => 0x33545844, // DXT3  
+                0x54 => 0x35545844, // DXT5
+                0x71 => 0x32495441, // ATI2 (BC5) - Xbox 360 normal map format
+                0x7B => 0x31495441, // ATI1 (BC4) - Single channel format (specular maps)
+                0x82 => 0x31545844, // DXT1 (default when DWORD[4] is 0)
+                0x86 => 0x31545844, // DXT1 variant
+                0x88 => 0x35545844, // DXT5 variant
+                0x12 => 0x31545844, // GPUTEXTUREFORMAT_DXT1
+                0x13 => 0x33545844, // GPUTEXTUREFORMAT_DXT2/3
+                0x14 => 0x35545844, // GPUTEXTUREFORMAT_DXT4/5
+                0x06 => 0x18280046, // GPUTEXTUREFORMAT_8_8_8_8 -> A8R8G8B8
+                0x04 => 0x28280044, // GPUTEXTUREFORMAT_5_6_5 -> R5G6B5
                 _ => 0x31545844 // Default to DXT1
             };
         }
@@ -1236,7 +951,6 @@ namespace DDXConv
             
             // Actual texture is half the atlas width (for square textures)
             // But for 256x192 atlas, actual texture is 128x128
-            // And for 512x384 atlas, actual texture is 1024x1024
             int actualWidth = width / 2;
             int actualHeight = width / 2; // Use width/2 to get square dimension
             
@@ -1245,18 +959,6 @@ namespace DDXConv
             {
                 actualWidth = 128;
                 actualHeight = 128;
-            }
-            // Handle special case of 512x384 atlas for 1024x1024 texture
-            else if (width == 512 && height == 384)
-            {
-                actualWidth = 1024;
-                actualHeight = 1024;
-            }
-            // General pattern: if height is 3/4 of width, actual texture is 2x width
-            else if (height == width * 3 / 4)
-            {
-                actualWidth = width * 2;
-                actualHeight = width * 2;
             }
             
             // Calculate total size needed for all mips linearly packed
@@ -1267,119 +969,8 @@ namespace DDXConv
             // Mip positions in blocks (each block is 4x4 pixels)
             // For 256x256 atlas (64x64 blocks) containing 128x128 texture (32x32 blocks):
             // For 256x192 atlas (64x48 blocks) containing 128x128 texture (32x32 blocks):
-            // For 1024x1024 atlas containing 1024x1024 texture - mips are packed within
-            // User measurements (in pixels): 0,0 | 512,0 | 0,256 | 256,256 | 512,256 | 640,256 | 768,256 | 912,256 | 904,256 | 900,256 | 896,264 | 896,260
-            Console.WriteLine($"UnpackMipAtlas: width={width}, height={height}, using {(width == 256 && height == 192 ? "256x192" : width == 1024 && height == 1024 ? "1024x1024" : "default")} mip layout");
-            
-            // Special handling for 1024x1024 atlas with split mips
-            if (width == 1024 && height == 1024)
-            {
-                // Mip 0 (512x512): split into top 512x256 at (0,0) and bottom 512x256 at (512,0)
-                // Extract top half
-                Console.WriteLine($"Extracting mip 0 (split): 512x512 - top half at (0,0), bottom half at (512,0)");
-                int topHalfBlocks = 128 * 64; // 512/4 * 256/4
-                for (int by = 0; by < 64; by++)
-                {
-                    for (int bx = 0; bx < 128; bx++)
-                    {
-                        int srcOffset = (by * atlasWidthInBlocks + bx) * blockSize;
-                        if (srcOffset + blockSize <= atlasData.Length && outputOffset + blockSize <= output.Length)
-                        {
-                            Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
-                        }
-                        outputOffset += blockSize;
-                    }
-                }
-                
-                // Extract bottom half at (512, 0) = block (128, 0)
-                for (int by = 0; by < 64; by++)
-                {
-                    for (int bx = 0; bx < 128; bx++)
-                    {
-                        int srcBlockX = 128 + bx;
-                        int srcBlockY = by;
-                        int srcOffset = (srcBlockY * atlasWidthInBlocks + srcBlockX) * blockSize;
-                        if (srcOffset + blockSize <= atlasData.Length && outputOffset + blockSize <= output.Length)
-                        {
-                            Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
-                        }
-                        outputOffset += blockSize;
-                    }
-                }
-                
-                // Remaining mips: positions from user
-                // Mip 1 (256x256): split top at (0,256), bottom at (256,256)
-                Console.WriteLine($"Extracting mip 1 (split): 256x256 - top half at (0,256), bottom half at (256,256)");
-                // Top half: (0, 256) = block (0, 64), size 256x128 = 64x32 blocks
-                for (int by = 0; by < 32; by++)
-                {
-                    for (int bx = 0; bx < 64; bx++)
-                    {
-                        int srcOffset = ((64 + by) * atlasWidthInBlocks + bx) * blockSize;
-                        if (srcOffset + blockSize <= atlasData.Length && outputOffset + blockSize <= output.Length)
-                        {
-                            Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
-                        }
-                        outputOffset += blockSize;
-                    }
-                }
-                // Bottom half: (256, 256) = block (64, 64)
-                for (int by = 0; by < 32; by++)
-                {
-                    for (int bx = 0; bx < 64; bx++)
-                    {
-                        int srcOffset = ((64 + by) * atlasWidthInBlocks + (64 + bx)) * blockSize;
-                        if (srcOffset + blockSize <= atlasData.Length && outputOffset + blockSize <= output.Length)
-                        {
-                            Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
-                        }
-                        outputOffset += blockSize;
-                    }
-                }
-                
-                // Remaining non-split mips
-                var remainingMips = new (int x, int y, int w, int h)[]
-                {
-                    (512, 256, 128, 128),    // Mip 2: 128x128 at (512,256)
-                    (640, 256, 64, 64),      // Mip 3: 64x64 at (640,256)
-                    (768, 256, 32, 32),      // Mip 4: 32x32 at (768,256)
-                    (912, 256, 16, 16),      // Mip 5: 16x16 at (912,256)
-                    (904, 256, 8, 8),        // Mip 6: 8x8 at (904,256)
-                    (900, 256, 4, 4),        // Mip 7: 4x4 at (900,256)
-                    // 2x2 and 1x1 are sub-block sized and packed within the 4x4 block
-                };
-                
-                for (int i = 0; i < remainingMips.Length; i++)
-                {
-                    var (mipX, mipY, mipW, mipH) = remainingMips[i];
-                    int mipXInBlocks = mipX / 4;
-                    int mipYInBlocks = mipY / 4;
-                    int mipWidthInBlocks = mipW / 4;
-                    int mipHeightInBlocks = mipH / 4;
-                    
-                    Console.WriteLine($"Extracting mip {i + 2}: {mipW}x{mipH} from atlas position ({mipX}, {mipY})");
-                    
-                    for (int by = 0; by < mipHeightInBlocks; by++)
-                    {
-                        for (int bx = 0; bx < mipWidthInBlocks; bx++)
-                        {
-                            int srcBlockX = mipXInBlocks + bx;
-                            int srcBlockY = mipYInBlocks + by;
-                            int srcOffset = (srcBlockY * atlasWidthInBlocks + srcBlockX) * blockSize;
-                            
-                            if (srcOffset + blockSize <= atlasData.Length && outputOffset + blockSize <= output.Length)
-                            {
-                                Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
-                            }
-                            
-                            outputOffset += blockSize;
-                        }
-                    }
-                }
-                
-                return output;
-            }
-            
+            // When atlas is 256x192 for a 128x128 texture, positions stay the same but mip sizes are halved
+            Console.WriteLine($"UnpackMipAtlas: width={width}, height={height}, using {(width == 256 && height == 192 ? "256x192" : "default")} mip layout");
             var mipPositions = width == 256 && height == 192 ? new (int x, int y, int w, int h)[]
             {
                 (0, 0, 16, 16),      // Mip 0: 64x64 at (0,0)
