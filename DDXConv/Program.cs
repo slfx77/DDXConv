@@ -390,37 +390,8 @@ namespace DDXConv
                 }
                 else if (mainData.Length < mainSurfaceSize)
                 {
-                    // Data is smaller than expected - might be split differently
-                    // Check if it's exactly 2x a smaller dimension
-                    if (mainData.Length == mainSurfaceSize / 2 && height == width / 2)
-                    {
-                        // Data suggests square texture, not the rectangular one from header
-                        Console.WriteLine($"WARNING: Data size suggests {width/2}x{width/2} instead of {width}x{height}");
-                        width = (ushort)(width / 2);
-                        height = (ushort)(width);
-                        texture.Width = width;
-                        texture.Height = height;
-                        mainSurfaceSize = (uint)CalculateMipSize(width, height, texture.ActualFormat);
-                    }
-                    
-                    // Data is smaller than expected - try to determine actual dimensions
-                    uint actualSize = (uint)mainData.Length;
-                    int blockSize = texture.ActualFormat == 0x82 || texture.ActualFormat == 0x52 ? 8 : 16;
-                    uint totalBlocks = actualSize / (uint)blockSize;
-                    
-                    // Check if it's square
-                    uint blocksPerSide = (uint)Math.Sqrt(totalBlocks);
-                    if (blocksPerSide * blocksPerSide == totalBlocks)
-                    {
-                        // It's square - adjust both dimensions
-                        ushort actualDimension = (ushort)(blocksPerSide * 4);
-                        Console.WriteLine($"WARNING: Data size mismatch! Header says {width}x{height}, but data is {actualDimension}x{actualDimension}");
-                        Console.WriteLine($"Using actual data dimensions for untiling and DDS output");
-                        width = actualDimension;
-                        height = actualDimension;
-                        texture.Width = width;
-                        texture.Height = height;
-                    }
+                    // Data is smaller than expected - just untile what we have
+                    Console.WriteLine($"WARNING: Data size smaller than expected: {mainData.Length} < {mainSurfaceSize}");
                     
                     // Untile as a single texture
                     byte[] untiled = UnswizzleDXTTexture(mainData, width, height, texture.ActualFormat);
@@ -433,44 +404,27 @@ namespace DDXConv
                 else if (mainData.Length == mainSurfaceSize * 2)
                 {
                     // Exactly 2x the expected size - might be two separate surfaces
-                    Console.WriteLine($"Data is exactly 2x expected size - might be two {width}x{height} chunks");
+                    Console.WriteLine($"Data is exactly 2x expected size - treating as two chunks");
                     
-                    // Try untiling as two separate chunks  
+                    // Split into two equal chunks
                     byte[] chunk1TiledAlt = new byte[mainData.Length / 2];
                     byte[] chunk2TiledAlt = new byte[mainData.Length / 2];
                     Array.Copy(mainData, 0, chunk1TiledAlt, 0, mainData.Length / 2);
                     Array.Copy(mainData, mainData.Length / 2, chunk2TiledAlt, 0, mainData.Length / 2);
                     
-                    // If header says dimensions, try untiling each chunk at those dimensions
-                    int chunkSquareSize = (int)Math.Sqrt(mainData.Length / 2 / 16) * 4;
-                    if (chunkSquareSize * chunkSquareSize / 16 * 16 == mainData.Length / 2)
-                    {
-                        Console.WriteLine($"Each chunk appears to be {chunkSquareSize}x{chunkSquareSize}");
-                        byte[] chunk1UntiledAlt = UnswizzleDXTTexture(chunk1TiledAlt, chunkSquareSize, chunkSquareSize, texture.ActualFormat);
-                        byte[] chunk2UntiledAlt = UnswizzleDXTTexture(chunk2TiledAlt, chunkSquareSize, chunkSquareSize, texture.ActualFormat);
-                        Console.WriteLine($"Untiled chunks to {chunk1UntiledAlt.Length} + {chunk2UntiledAlt.Length} bytes");
-                        
-                        // Chunk 1 might have mips packed
-                        byte[] mipsAlt = UnpackMipAtlas(chunk1UntiledAlt, chunkSquareSize, chunkSquareSize, texture.ActualFormat);
-                        Console.WriteLine($"Extracted {mipsAlt.Length} bytes of mips from chunk 1");
-                        
-                        linearData = new byte[chunk2UntiledAlt.Length + mipsAlt.Length];
-                        Array.Copy(chunk2UntiledAlt, 0, linearData, 0, chunk2UntiledAlt.Length);
-                        Array.Copy(mipsAlt, 0, linearData, chunk2UntiledAlt.Length, mipsAlt.Length);
-                        
-                        texture.Width = (ushort)chunkSquareSize;
-                        texture.Height = (ushort)chunkSquareSize;
-                        Console.WriteLine($"Corrected dimensions to {chunkSquareSize}x{chunkSquareSize}");
-                        Console.WriteLine($"Combined {chunk2UntiledAlt.Length} bytes main + {mipsAlt.Length} bytes mips = {linearData.Length} total");
-                    }
-                    else
-                    {
-                        // Fallback: just use untiled data
-                        byte[] untiled = UnswizzleDXTTexture(mainData, width, height, texture.ActualFormat);
-                        Console.WriteLine($"Untiled to {untiled.Length} bytes");
-                        linearData = untiled;
-                        texture.MipLevels = 1;
-                    }
+                    byte[] chunk1UntiledAlt = UnswizzleDXTTexture(chunk1TiledAlt, width, height, texture.ActualFormat);
+                    byte[] chunk2UntiledAlt = UnswizzleDXTTexture(chunk2TiledAlt, width, height, texture.ActualFormat);
+                    Console.WriteLine($"Untiled chunks to {chunk1UntiledAlt.Length} + {chunk2UntiledAlt.Length} bytes");
+                    
+                    // Chunk 1 might have mips packed
+                    byte[] mipsAlt = UnpackMipAtlas(chunk1UntiledAlt, width, height, texture.ActualFormat);
+                    Console.WriteLine($"Extracted {mipsAlt.Length} bytes of mips from chunk 1");
+                    
+                    linearData = new byte[chunk2UntiledAlt.Length + mipsAlt.Length];
+                    Array.Copy(chunk2UntiledAlt, 0, linearData, 0, chunk2UntiledAlt.Length);
+                    Array.Copy(mipsAlt, 0, linearData, chunk2UntiledAlt.Length, mipsAlt.Length);
+                    
+                    Console.WriteLine($"Combined {chunk2UntiledAlt.Length} bytes main + {mipsAlt.Length} bytes mips = {linearData.Length} total");
                 }
                 // Check if data might be two square chunks before assuming exact match
                 else if (couldBeTwoSquares)
@@ -625,20 +579,21 @@ namespace DDXConv
             //
             // IMPORTANT: Xbox 360 is big-endian, so Format dwords must be read as big-endian!
             
-            // Extract Format dword_2 (size_2d) at offset 36 within the 52-byte header (28 + 8)
-            byte[] dword2Bytes = new byte[4];
-            Array.Copy(header, 36, dword2Bytes, 0, 4);
-            Array.Reverse(dword2Bytes); // Convert from big-endian to little-endian
-            uint dword2 = BitConverter.ToUInt32(dword2Bytes, 0);
+            // Our header starts at file offset 0x08
+            // Dimensions dword is at formatDword[5] position = offset 16+20 = 36, stored as BIG-ENDIAN
+            byte[] dword5Bytes = new byte[4];
+            Array.Copy(header, 36, dword5Bytes, 0, 4);
+            Array.Reverse(dword5Bytes); // Convert from big-endian to little-endian
+            uint dword5 = BitConverter.ToUInt32(dword5Bytes, 0);
             
             // Decode size_2d structure (dimensions stored as size-1):
             // Bits 0-12: width - 1
             // Bits 13-25: height - 1  
             // Bits 26-31: stack_depth
-            width = (ushort)((dword2 & 0x1FFF) + 1);
-            height = (ushort)(((dword2 >> 13) & 0x1FFF) + 1);
+            width = (ushort)((dword5 & 0x1FFF) + 1);
+            height = (ushort)(((dword5 >> 13) & 0x1FFF) + 1);
             
-            Console.WriteLine($"Parsed from Format dword_2: 0x{dword2:X8} -> {width}x{height}");
+            Console.WriteLine($"Parsed from Format dword_5: 0x{dword5:X8} -> {width}x{height}");
             
             // Now parse the rest using the existing method
             return ParseD3DTextureHeader(header, width, height);
@@ -647,6 +602,7 @@ namespace DDXConv
         private D3DTextureInfo ParseD3DTextureHeader(byte[] header, ushort width, ushort height)
         {
             // Xbox 360 D3D texture header structure
+            // The header we receive is 52 bytes starting at file offset 0x08
             // Dimensions are passed separately - they're extracted from Format dword_2
             
             var info = new D3DTextureInfo();
@@ -655,32 +611,31 @@ namespace DDXConv
             info.Width = width;
             info.Height = height;
             
-            // Format (xe_gpu_texture_fetch_t) is at offset 28 (24 bytes base + 4 bytes MipFlush)
-            // Xbox 360 is big-endian, so we must reverse bytes when reading dwords
+            // Our header starts at file offset 0x08
+            // The .old version read header from file 0x10 and read formatDwords from offset 8 within that header = file 0x18
+            // So we need to read formatDwords from file 0x18, which is offset 0x18-0x08 = 0x10 = 16 within our header
+            // Format dwords are stored as LITTLE-ENDIAN (already in Intel byte order), NO byte reversal needed
+            
             uint[] formatDwords = new uint[6];
             for (int i = 0; i < 6; i++)
             {
-                byte[] dwordBytes = new byte[4];
-                Array.Copy(header, 28 + i * 4, dwordBytes, 0, 4);
-                Array.Reverse(dwordBytes); // Big-endian to little-endian
-                formatDwords[i] = BitConverter.ToUInt32(dwordBytes, 0);
+                formatDwords[i] = BitConverter.ToUInt32(header, 16 + i * 4);
             }
             
             uint dword0 = formatDwords[0];
-            uint dword1 = formatDwords[1];
+            uint dword3 = formatDwords[3];
             uint dword4 = formatDwords[4];
 
-            // Format is in dword_1 bits 0-5 (from Xenia xenos.h)
-            info.DataFormat = dword1 & 0x3F;
+            // The format appears to be in DWORD[3] byte 0 (bits 0-7)
+            // But for format 0x82, the actual texture format (DXT1/DXT5) is in DWORD[4] byte 3
+            info.DataFormat = dword3 & 0xFF;
             
-            // For some formats, check DWORD[4] for additional format info
+            // For 0x82 textures, check DWORD[4] high byte to distinguish DXT1 from DXT5
             uint actualFormat = (dword4 >> 24) & 0xFF;
-            Console.WriteLine($"Format detection: DataFormat=0x{info.DataFormat:X2}, DWORD[4]=0x{dword4:08X}, ActualFormat=0x{actualFormat:X2}");
+            Console.WriteLine($"Format detection: DataFormat=0x{info.DataFormat:X2}, DWORD[4]=0x{dword4:X8}, ActualFormat=0x{actualFormat:X2}");
             
-            // Endianness is in dword_1 bits 6-7
-            info.Endian = (dword1 >> 6) & 0x3;
-            // Tiled is in dword_0 bit 31
-            info.Tiled = ((dword0 >> 31) & 1) != 0;
+            info.Endian = (dword0 >> 26) & 0x3;
+            info.Tiled = ((dword0 >> 19) & 1) != 0;
 
             // Store the actual format for untiling
             info.ActualFormat = actualFormat != 0 ? actualFormat : info.DataFormat;
