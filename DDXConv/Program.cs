@@ -200,31 +200,91 @@ namespace DDXConv
             byte[] linearData;
             
             // Check if we have two chunks or one chunk
-            if (mainData.Length >= atlasSize * 2)
+            // Two chunk format can be:
+            // 1. Exactly 2x atlasSize (for small textures like 128x128 or 256x256)
+            // 2. Main surface + smaller mip atlas (for large textures like 1024x1024)
+            bool isTwoChunkFormat = false;
+            uint chunk1Size = 0;
+            uint chunk2Size = 0;
+            
+            if (mainData.Length == atlasSize * 2)
             {
-                // Two-chunk format: chunk1 = mip atlas, chunk2 = main surface
-                Console.WriteLine($"Two-chunk format detected ({mainData.Length} bytes)");
+                // Small texture: two equal-sized chunks
+                isTwoChunkFormat = true;
+                chunk1Size = atlasSize;
+                chunk2Size = atlasSize;
+            }
+            else if (width >= 512 && height >= 512 && mainData.Length > mainSurfaceSize)
+            {
+                // Large texture: check if we have main surface + mip atlas
+                // Mip atlas size = sum of all mips from width/2 down to 4x4
+                // For 1024x1024 DXT1: mips are 512,256,128,64,32,16,8,4 = 131072+32768+8192+2048+512+128+32+8 = 174760
+                // But atlas layout adds padding, so actual could be 512x384 = 196608
+                int remainingSize = mainData.Length - (int)mainSurfaceSize;
                 
-                byte[] chunk1 = new byte[atlasSize];
-                byte[] chunk2 = new byte[atlasSize];
-                Array.Copy(mainData, 0, chunk1, 0, (int)atlasSize);
-                Array.Copy(mainData, (int)atlasSize, chunk2, 0, (int)atlasSize);
+                // Calculate expected mip atlas dimensions (width/2 x height*3/4)
+                int atlasWidth = width / 2;
+                int atlasHeight = height * 3 / 4;
+                int expectedAtlasSize = CalculateMipSize(atlasWidth, atlasHeight, texture.ActualFormat);
+                
+                Console.WriteLine($"Checking for two-chunk format: {mainData.Length} bytes, main={mainSurfaceSize}, remaining={remainingSize}, expected atlas={expectedAtlasSize}");
+                
+                if (Math.Abs(remainingSize - expectedAtlasSize) < 1000)
+                {
+                    isTwoChunkFormat = true;
+                    chunk1Size = (uint)remainingSize;
+                    chunk2Size = (uint)mainSurfaceSize;
+                    Console.WriteLine($"Detected large texture two-chunk format: atlas={chunk1Size} + main={chunk2Size}");
+                }
+            }
+            
+            if (isTwoChunkFormat)
+            {
+                // Two-chunk format
+                // chunk1Size and chunk2Size were set by detection above
+                // For large textures: chunk1 (smaller) = mip atlas, chunk2 (larger) = main surface
+                // For small textures: chunk1 = mip atlas, chunk2 = main surface (same sizes)
+                Console.WriteLine($"Two-chunk format confirmed ({mainData.Length} bytes)");
+                
+                byte[] chunk1 = new byte[chunk1Size];
+                byte[] chunk2 = new byte[chunk2Size];
+                Array.Copy(mainData, 0, chunk1, 0, chunk1Size);
+                Array.Copy(mainData, chunk1Size, chunk2, 0, chunk2Size);
+                
+                // Determine atlas dimensions
+                int atlasWidth, atlasHeight;
+                
+                if (width <= 256)
+                {
+                    // Small texture: atlas same size as main
+                    atlasWidth = width;
+                    atlasHeight = height;
+                }
+                else
+                {
+                    // Large texture: atlas is ALSO the main dimensions (1024x1024 atlas for 1024x1024 texture)
+                    // The mips are packed within this 1024x1024 space
+                    atlasWidth = width;
+                    atlasHeight = height;
+                }
+                
+                Console.WriteLine($"Untiling chunk1 ({chunk1Size} bytes) as atlas {atlasWidth}x{atlasHeight} and chunk2 ({chunk2Size} bytes) as main {width}x{height}");
                 
                 // Untile both chunks
-                byte[] untiledChunk1 = UnswizzleDXTTexture(chunk1, width, height, texture.ActualFormat);
-                byte[] untiledChunk2 = UnswizzleDXTTexture(chunk2, width, height, texture.ActualFormat);
+                byte[] untiledAtlas = UnswizzleDXTTexture(chunk1, atlasWidth, atlasHeight, texture.ActualFormat);
+                byte[] untiledMain = UnswizzleDXTTexture(chunk2, width, height, texture.ActualFormat);
                 
-                Console.WriteLine($"Untiled both chunks to {untiledChunk1.Length} and {untiledChunk2.Length} bytes");
+                Console.WriteLine($"Untiled both chunks to {untiledAtlas.Length} and {untiledMain.Length} bytes");
                 
-                // Chunk 2 is the main surface, chunk 1 contains mip atlas
-                byte[] mips = UnpackMipAtlas(untiledChunk1, width, height, texture.ActualFormat);
-                Console.WriteLine($"Extracted {mips.Length} bytes of mips from chunk 1");
+                // Extract mips from atlas
+                byte[] mips = UnpackMipAtlas(untiledAtlas, atlasWidth, atlasHeight, texture.ActualFormat);
+                Console.WriteLine($"Extracted {mips.Length} bytes of mips from atlas");
                 
-                linearData = new byte[untiledChunk2.Length + mips.Length];
-                Array.Copy(untiledChunk2, 0, linearData, 0, untiledChunk2.Length);
-                Array.Copy(mips, 0, linearData, untiledChunk2.Length, mips.Length);
+                linearData = new byte[untiledMain.Length + mips.Length];
+                Array.Copy(untiledMain, 0, linearData, 0, untiledMain.Length);
+                Array.Copy(mips, 0, linearData, untiledMain.Length, mips.Length);
                 
-                Console.WriteLine($"Combined {untiledChunk2.Length} bytes main surface + {mips.Length} bytes mips = {linearData.Length} total");
+                Console.WriteLine($"Combined {untiledMain.Length} bytes main surface + {mips.Length} bytes mips = {linearData.Length} total");
             }
             else
             {
@@ -985,6 +1045,7 @@ namespace DDXConv
             
             // Actual texture is half the atlas width (for square textures)
             // But for 256x192 atlas, actual texture is 128x128
+            // And for 512x384 atlas, actual texture is 1024x1024
             int actualWidth = width / 2;
             int actualHeight = width / 2; // Use width/2 to get square dimension
             
@@ -993,6 +1054,18 @@ namespace DDXConv
             {
                 actualWidth = 128;
                 actualHeight = 128;
+            }
+            // Handle special case of 512x384 atlas for 1024x1024 texture
+            else if (width == 512 && height == 384)
+            {
+                actualWidth = 1024;
+                actualHeight = 1024;
+            }
+            // General pattern: if height is 3/4 of width, actual texture is 2x width
+            else if (height == width * 3 / 4)
+            {
+                actualWidth = width * 2;
+                actualHeight = width * 2;
             }
             
             // Calculate total size needed for all mips linearly packed
@@ -1003,8 +1076,120 @@ namespace DDXConv
             // Mip positions in blocks (each block is 4x4 pixels)
             // For 256x256 atlas (64x64 blocks) containing 128x128 texture (32x32 blocks):
             // For 256x192 atlas (64x48 blocks) containing 128x128 texture (32x32 blocks):
-            // When atlas is 256x192 for a 128x128 texture, positions stay the same but mip sizes are halved
-            Console.WriteLine($"UnpackMipAtlas: width={width}, height={height}, using {(width == 256 && height == 192 ? "256x192" : "default")} mip layout");
+            // For 1024x1024 atlas containing 1024x1024 texture - mips are packed within
+            // User measurements (in pixels): 0,0 | 512,0 | 0,256 | 256,256 | 512,256 | 640,256 | 768,256 | 912,256 | 904,256 | 900,256 | 896,264 | 896,260
+            Console.WriteLine($"UnpackMipAtlas: width={width}, height={height}, using {(width == 256 && height == 192 ? "256x192" : width == 1024 && height == 1024 ? "1024x1024" : "default")} mip layout");
+            
+            // Special handling for 1024x1024 atlas with split mips
+            if (width == 1024 && height == 1024)
+            {
+                // Mip 0 (512x512): split into top 512x256 at (0,0) and bottom 512x256 at (512,0)
+                // Extract top half
+                Console.WriteLine($"Extracting mip 0 (split): 512x512 - top half at (0,0), bottom half at (512,0)");
+                int topHalfBlocks = 128 * 64; // 512/4 * 256/4
+                for (int by = 0; by < 64; by++)
+                {
+                    for (int bx = 0; bx < 128; bx++)
+                    {
+                        int srcOffset = (by * atlasWidthInBlocks + bx) * blockSize;
+                        if (srcOffset + blockSize <= atlasData.Length && outputOffset + blockSize <= output.Length)
+                        {
+                            Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
+                        }
+                        outputOffset += blockSize;
+                    }
+                }
+                
+                // Extract bottom half at (512, 0) = block (128, 0)
+                for (int by = 0; by < 64; by++)
+                {
+                    for (int bx = 0; bx < 128; bx++)
+                    {
+                        int srcBlockX = 128 + bx;
+                        int srcBlockY = by;
+                        int srcOffset = (srcBlockY * atlasWidthInBlocks + srcBlockX) * blockSize;
+                        if (srcOffset + blockSize <= atlasData.Length && outputOffset + blockSize <= output.Length)
+                        {
+                            Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
+                        }
+                        outputOffset += blockSize;
+                    }
+                }
+                
+                // Remaining mips: positions from user
+                // Mip 1 (256x256): split top at (0,256), bottom at (256,256)
+                Console.WriteLine($"Extracting mip 1 (split): 256x256 - top half at (0,256), bottom half at (256,256)");
+                // Top half: (0, 256) = block (0, 64), size 256x128 = 64x32 blocks
+                for (int by = 0; by < 32; by++)
+                {
+                    for (int bx = 0; bx < 64; bx++)
+                    {
+                        int srcOffset = ((64 + by) * atlasWidthInBlocks + bx) * blockSize;
+                        if (srcOffset + blockSize <= atlasData.Length && outputOffset + blockSize <= output.Length)
+                        {
+                            Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
+                        }
+                        outputOffset += blockSize;
+                    }
+                }
+                // Bottom half: (256, 256) = block (64, 64)
+                for (int by = 0; by < 32; by++)
+                {
+                    for (int bx = 0; bx < 64; bx++)
+                    {
+                        int srcOffset = ((64 + by) * atlasWidthInBlocks + (64 + bx)) * blockSize;
+                        if (srcOffset + blockSize <= atlasData.Length && outputOffset + blockSize <= output.Length)
+                        {
+                            Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
+                        }
+                        outputOffset += blockSize;
+                    }
+                }
+                
+                // Remaining non-split mips
+                var remainingMips = new (int x, int y, int w, int h)[]
+                {
+                    (512, 256, 128, 128),    // Mip 2: 128x128 at (512,256)
+                    (640, 256, 64, 64),      // Mip 3: 64x64 at (640,256)
+                    (768, 256, 32, 32),      // Mip 4: 32x32 at (768,256)
+                    (912, 256, 16, 16),      // Mip 5: 16x16 at (912,256)
+                    (904, 256, 8, 8),        // Mip 6: 8x8 at (904,256)
+                    (900, 256, 4, 4),        // Mip 7: 4x4 at (900,256)
+                    (896, 264, 4, 4),        // Mip 8: 2x2 at (896,264) - sub-block, extract as 4x4 block
+                    (896, 260, 4, 4),        // Mip 9: 1x1 at (896,260) - sub-block, extract as 4x4 block
+                };
+                
+                for (int i = 0; i < remainingMips.Length; i++)
+                {
+                    var (mipX, mipY, mipW, mipH) = remainingMips[i];
+                    int mipXInBlocks = mipX / 4;
+                    int mipYInBlocks = mipY / 4;
+                    int mipWidthInBlocks = mipW / 4;
+                    int mipHeightInBlocks = mipH / 4;
+                    
+                    Console.WriteLine($"Extracting mip {i + 2}: {mipW}x{mipH} from atlas position ({mipX}, {mipY})");
+                    
+                    for (int by = 0; by < mipHeightInBlocks; by++)
+                    {
+                        for (int bx = 0; bx < mipWidthInBlocks; bx++)
+                        {
+                            int srcBlockX = mipXInBlocks + bx;
+                            int srcBlockY = mipYInBlocks + by;
+                            int srcOffset = (srcBlockY * atlasWidthInBlocks + srcBlockX) * blockSize;
+                            
+                            if (srcOffset + blockSize <= atlasData.Length && outputOffset + blockSize <= output.Length)
+                            {
+                                Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
+                            }
+                            
+                            outputOffset += blockSize;
+                        }
+                    }
+                }
+                
+                return output;
+            }
+            
             var mipPositions = width == 256 && height == 192 ? new (int x, int y, int w, int h)[]
             {
                 (0, 0, 16, 16),      // Mip 0: 64x64 at (0,0)
