@@ -1,5 +1,7 @@
-﻿namespace DDXConv;
+﻿using System;
+using System.IO;
 
+namespace DDXConv;
 internal class Program
 {
     private static void Main(string[] args)
@@ -20,12 +22,11 @@ internal class Program
         {
             Console.WriteLine("Single File: DDXConv <input_file> [output_file] [options]");
             Console.WriteLine("      Batch: DDXConv <input_directory> <output_directory> [options]");
-            Console.WriteLine("Converts Xbox 360 DDX texture files to DDS format");
             Console.WriteLine("Standard Options:");
             Console.WriteLine("  --pc-friendly, -pc   Produce PC-ready normal maps (batch conversion only!)");
             Console.WriteLine("  --regen-mips, -g     Regenerate mip levels from top level");
             Console.WriteLine("Developer Options:");
-            Console.WriteLine("  --atlas, -a          Save untiled atlas as separate DDS file");
+            Console.WriteLine("  --atlas, -a          Save untiled mip atlas as separate DDS file");
             Console.WriteLine("  --raw, -r            Save raw combined decompressed data as binary file");
             Console.WriteLine("  --save-mips          Save extracted mip levels from atlas");
             Console.WriteLine("  --no-untile-atlas    Do not untile/unswizzle the atlas (leave tiled)");
@@ -70,7 +71,7 @@ internal class Program
 
                 try
                 {
-                    var parser = new DdxParser();
+                    var parser = new DdxParser(verbose);
                     parser.ConvertDdxToDds(ddxFile, outputBatchPath,
                         new ConversionOptions
                         {
@@ -78,8 +79,9 @@ internal class Program
                             NoUntileAtlas = noUntileAtlas, SkipEndianSwap = skipEndianSwap
                         });
                     Console.WriteLine($"Converted {ddxFile} to {outputBatchPath}");
+                    if (regenMips) DdsPostProcessor.RegenerateMips(outputBatchPath);
                 }
-                catch (InvalidDataException ex)
+                catch (NotSupportedException)
                 {
                     invalids++;
                 }
@@ -92,7 +94,7 @@ internal class Program
             }
 
             Console.WriteLine(
-                $"Batch conversion completed. Successfully converted {ddxFiles.Length - errors - invalids} out of {ddxFiles.Length} files ({errors} failures, {invalids} invalids).");
+                $"Batch conversion completed. Successfully converted {ddxFiles.Length - errors - invalids} out of {ddxFiles.Length} files ({errors} failures, {invalids} unsupported).");
             foreach (var tex in failed) Console.Write($"- {tex.name}: {tex.error}\n");
 
             if (pcFriendly)
@@ -103,16 +105,14 @@ internal class Program
                 {
                     // check if file with same name but _s.dds exists
                     var specFile = ddsFile.Replace("_n.dds", "_s.dds");
-                    if (File.Exists(specFile))
+                    try
                     {
-                        try
-                        {
-                            Console.WriteLine($"Converted to PC-friendly normal map: {ddsFile}");
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"Error converting to PC-friendly normal map {ddsFile}: {ex.Message}");
-                        }
+                        DdsPostProcessor.MergeNormalSpecularMaps(ddsFile, File.Exists(specFile) ? specFile : null);
+                        Console.WriteLine($"Converted to PC-friendly normal map: {ddsFile}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error converting to PC-friendly normal map {ddsFile}: {ex.Message}");
                     }
                 }
             }
@@ -138,26 +138,14 @@ internal class Program
                     SkipEndianSwap = skipEndianSwap
                 });
             Console.WriteLine($"Successfully converted {inputPath} to {outputPath}");
+            // Regenerate mips unless disabled or if PC-friendly normal map case (no reason to add another re-encode since normal merge regenerates mips)
+            if (!regenMips || ((inputPath.EndsWith("_s.dds") || inputPath.EndsWith("_n.dds")) && pcFriendly)) return;
+            DdsPostProcessor.RegenerateMips(outputPath);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error: {ex.Message}");
             Console.WriteLine(ex.StackTrace);
         }
-    }
-}
-
-public static class NormalConverter
-{
-    public static void ConvertToPcFriendly(string normalFilePath, string specFilePath)
-    {
-        // Load BC5 normal map, convert to 3-channel normal map, load BC4 specular map, use as alpha
-        // Save DXT5 format DDS to output path
-        // Delete specular map after conversion
-        
-        var normalData = File.ReadAllBytes(normalFilePath);
-        var specData = File.ReadAllBytes(specFilePath);
-        
-        
     }
 }

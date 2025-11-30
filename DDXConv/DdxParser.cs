@@ -5,6 +5,7 @@ namespace DDXConv;
 public class DdxParser
 {
     private readonly bool verboseLogging;
+    
     public DdxParser(bool verbose = false)
     {
         verboseLogging = verbose;

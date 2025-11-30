@@ -25,4 +25,8 @@
       <ProjectReference Include="..\XCompression\XCompression.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <PackageReference Include="BCnEncoder.Net.ImageSharp" Version="1.1.2" />
+    </ItemGroup>
+
 </Project>
