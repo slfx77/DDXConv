@@ -23,11 +23,16 @@ internal class Program
         {
             Console.WriteLine("Single File: DDXConv <input_file> [output_file] [options]");
             Console.WriteLine("      Batch: DDXConv <input_directory> <output_directory> [options]");
+            Console.WriteLine();
             Console.WriteLine("Standard Options:");
             Console.WriteLine("  --pc-friendly, -pc   Produce PC-ready normal maps (batch conversion only!)");
             Console.WriteLine("  --regen-mips, -g     Regenerate mip levels from top level");
+            Console.WriteLine();
+            Console.WriteLine("Memory Dump Options (for textures carved from memory dumps):");
+            Console.WriteLine("  --memory, -m         Use memory texture parser (handles memory dump layouts)");
+            Console.WriteLine("  --atlas, -a          Save full untiled atlas as separate DDS file");
+            Console.WriteLine();
             Console.WriteLine("Developer Options:");
-            Console.WriteLine("  --atlas, -a          Save untiled mip atlas as separate DDS file");
             Console.WriteLine("  --raw, -r            Save raw combined decompressed data as binary file");
             Console.WriteLine("  --save-mips          Save extracted mip levels from atlas");
             Console.WriteLine("  --no-untile-atlas    Do not untile/unswizzle the atlas (leave tiled)");
@@ -40,6 +45,7 @@ internal class Program
         var inputPath = positional[0];
         var pcFriendly = opts.Contains("--pc-friendly") || opts.Contains("-pc");
         var regenMips = opts.Contains("--regen-mips") || opts.Contains("-g");
+        var memoryMode = opts.Contains("--memory") || opts.Contains("-m");
         var saveAtlas = opts.Contains("--atlas") || opts.Contains("-a");
         var saveRaw = opts.Contains("--raw") || opts.Contains("-r");
         var saveMips = opts.Contains("--save-mips");
@@ -74,18 +80,40 @@ internal class Program
 
                 try
                 {
-                    var parser = new DdxParser(verbose);
-                    parser.ConvertDdxToDds(ddxFile, outputBatchPath,
-                        new ConversionOptions
+                    if (memoryMode)
+                    {
+                        // Use MemoryTextureParser for textures carved from memory dumps
+                        var memoryParser = new MemoryTextureParser(verbose);
+                        var result = memoryParser.ConvertFromMemory(ddxFile, outputBatchPath, saveAtlas, saveRaw);
+                        
+                        if (result.Success)
                         {
-                            SaveAtlas = saveAtlas,
-                            SaveRaw = saveRaw,
-                            SaveMips = saveMips,
-                            NoUntileAtlas = noUntileAtlas,
-                            NoUntile = noUntile,
-                            SkipEndianSwap = skipEndianSwap
-                        });
-                    Console.WriteLine($"Converted {ddxFile} to {outputBatchPath}");
+                            Console.WriteLine($"Converted {ddxFile} to {outputBatchPath}");
+                        }
+                        else
+                        {
+                            errors++;
+                            Console.WriteLine($"Error converting {ddxFile}: {result.Error}");
+                            failed.Add((ddxFile, result.Error ?? "Unknown error"));
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        // Use standard DdxParser for file-based .ddx files
+                        var parser = new DdxParser(verbose);
+                        parser.ConvertDdxToDds(ddxFile, outputBatchPath,
+                            new ConversionOptions
+                            {
+                                SaveAtlas = saveAtlas,
+                                SaveRaw = saveRaw,
+                                SaveMips = saveMips,
+                                NoUntileAtlas = noUntileAtlas,
+                                NoUntile = noUntile,
+                                SkipEndianSwap = skipEndianSwap
+                            });
+                        Console.WriteLine($"Converted {ddxFile} to {outputBatchPath}");
+                    }
                     if (regenMips) DdsPostProcessor.RegenerateMips(outputBatchPath);
                 }
                 catch (NotSupportedException)
@@ -133,22 +161,47 @@ internal class Program
             return;
         }
 
-        var outputPath = args.Length > 1 ? args[1] : Path.ChangeExtension(inputPath, ".dds");
+        var outputPath = positional.Count > 1 ? positional[1] : Path.ChangeExtension(inputPath, ".dds");
 
         try
         {
-            var parser = new DdxParser(verbose);
-            parser.ConvertDdxToDds(inputPath, outputPath,
-                new ConversionOptions
+            if (memoryMode)
+            {
+                // Use MemoryTextureParser for textures carved from memory dumps
+                var memoryParser = new MemoryTextureParser(verbose);
+                var result = memoryParser.ConvertFromMemory(inputPath, outputPath, saveAtlas, saveRaw);
+                
+                if (result.Success)
                 {
-                    SaveAtlas = saveAtlas,
-                    SaveRaw = saveRaw,
-                    SaveMips = saveMips,
-                    NoUntileAtlas = noUntileAtlas,
-                    NoUntile = noUntile,
-                    SkipEndianSwap = skipEndianSwap
-                });
-            Console.WriteLine($"Successfully converted {inputPath} to {outputPath}");
+                    Console.WriteLine($"Successfully converted memory texture {inputPath} to {outputPath}");
+                    if (result.AtlasData != null && saveAtlas)
+                    {
+                        Console.WriteLine($"  Atlas saved: {result.AtlasPath}");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"Conversion failed: {result.Error}");
+                    return;
+                }
+            }
+            else
+            {
+                // Use standard DdxParser for file-based .ddx files
+                var parser = new DdxParser(verbose);
+                parser.ConvertDdxToDds(inputPath, outputPath,
+                    new ConversionOptions
+                    {
+                        SaveAtlas = saveAtlas,
+                        SaveRaw = saveRaw,
+                        SaveMips = saveMips,
+                        NoUntileAtlas = noUntileAtlas,
+                        NoUntile = noUntile,
+                        SkipEndianSwap = skipEndianSwap
+                    });
+                Console.WriteLine($"Successfully converted {inputPath} to {outputPath}");
+            }
+            
             // Regenerate mips unless disabled or if PC-friendly normal map case (no reason to add another re-encode since normal merge regenerates mips)
             if (!regenMips || ((inputPath.EndsWith("_s.dds") || inputPath.EndsWith("_n.dds")) && pcFriendly)) return;
             DdsPostProcessor.RegenerateMips(outputPath);
