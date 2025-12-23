@@ -310,11 +310,10 @@ public class MemoryTextureParser
     /// - Packed mip atlas (half-size base in full-size tiled space)
     /// - Single surface only
     /// </summary>
-    private ConversionResult ProcessMemoryTextureData(byte[] data, int width, int height, 
+    private ConversionResult ProcessMemoryTextureData(byte[] data, int width, int height,
         TextureInfo texture, bool saveAtlas)
     {
         var mainSurfaceSize = CalculateMipSize(width, height, texture.ActualFormat);
-        byte[]? atlasData = null;
 
         // Determine the layout based on data size
         if (data.Length == mainSurfaceSize)

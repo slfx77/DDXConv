@@ -311,7 +311,7 @@ public static class TextureUtilities
     /// <summary>
     /// Interleave two horizontal chunks into a single texture.
     /// </summary>
-    public static byte[] InterleaveHorizontalChunks(byte[] leftChunk, byte[] rightChunk, 
+    public static byte[] InterleaveHorizontalChunks(byte[] leftChunk, byte[] rightChunk,
         int leftWidth, int rightWidth, int height, uint format)
     {
         int blockSize = GetBlockSize(format);

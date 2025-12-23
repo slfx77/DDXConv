@@ -85,7 +85,7 @@ internal class Program
                         // Use MemoryTextureParser for textures carved from memory dumps
                         var memoryParser = new MemoryTextureParser(verbose);
                         var result = memoryParser.ConvertFromMemory(ddxFile, outputBatchPath, saveAtlas, saveRaw);
-                        
+
                         if (result.Success)
                         {
                             Console.WriteLine($"Converted {ddxFile} to {outputBatchPath}");
@@ -170,7 +170,7 @@ internal class Program
                 // Use MemoryTextureParser for textures carved from memory dumps
                 var memoryParser = new MemoryTextureParser(verbose);
                 var result = memoryParser.ConvertFromMemory(inputPath, outputPath, saveAtlas, saveRaw);
-                
+
                 if (result.Success)
                 {
                     Console.WriteLine($"Successfully converted memory texture {inputPath} to {outputPath}");
@@ -201,7 +201,7 @@ internal class Program
                     });
                 Console.WriteLine($"Successfully converted {inputPath} to {outputPath}");
             }
-            
+
             // Regenerate mips unless disabled or if PC-friendly normal map case (no reason to add another re-encode since normal merge regenerates mips)
             if (!regenMips || ((inputPath.EndsWith("_s.dds") || inputPath.EndsWith("_n.dds")) && pcFriendly)) return;
             DdsPostProcessor.RegenerateMips(outputPath);
