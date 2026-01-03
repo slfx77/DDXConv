@@ -85,7 +85,9 @@ public static class DdsWriter
         writer.Write(texture.MipLevels);
 
         // Reserved (11 dwords)
-        for (var i = 0; i < 11; i++) writer.Write(0u);
+        for (var i = 0; i < 9; i++) writer.Write(0u);
+        writer.Write(0x4E41524B); // add branding "KRAN" in same location as nvidia's "NVTT"
+        writer.Write(0u);
 
         // Pixel format
         WriteDdsPixelFormat(writer, texture.Format);
