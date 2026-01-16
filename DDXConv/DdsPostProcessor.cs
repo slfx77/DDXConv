@@ -32,8 +32,12 @@ public static class DdsPostProcessor
         else
         {
             for (var y = 0; y < normalImage.Height; y++)
-            for (var x = 0; x < normalImage.Width; x++)
-                specImage[x, y] = new Rgba32(255, 255, 255, 255);
+            {
+                for (var x = 0; x < normalImage.Width; x++)
+                {
+                    specImage[x, y] = new Rgba32(255, 255, 255, 255);
+                }
+            }
         }
 
         if (normalImage.Width != specImage.Width || normalImage.Height != specImage.Height)
@@ -46,28 +50,30 @@ public static class DdsPostProcessor
         // Assumes normalImage R,G channels are the signed XY encoded as 0..255 -> -1..1
         // We'll reconstruct Z = sqrt(1 - x^2 - y^2) and map to 0..255.
         for (var y = 0; y < normalImage.Height; y++)
-        for (var x = 0; x < normalImage.Width; x++)
         {
-            var npx = normalImage.Frames[0].PixelBuffer[x, y];
-            var spx = specImage.Frames[0].PixelBuffer[x, y];
+            for (var x = 0; x < normalImage.Width; x++)
+            {
+                var npx = normalImage.Frames[0].PixelBuffer[x, y];
+                var spx = specImage.Frames[0].PixelBuffer[x, y];
 
-            // Convert from [0..255] to [-1..1]
-            var nx = npx.R / 255f * 2f - 1f;
-            var ny = npx.G / 255f * 2f - 1f;
+                // Convert from [0..255] to [-1..1]
+                var nx = npx.R / 255f * 2f - 1f;
+                var ny = npx.G / 255f * 2f - 1f;
 
-            // Compute z (clamp small negative to 0)
-            var nz2 = 1f - nx * nx - ny * ny;
-            var nz = nz2 > 0f ? (float)Math.Sqrt(nz2) : 0f;
+                // Compute z (clamp small negative to 0)
+                var nz2 = 1f - nx * nx - ny * ny;
+                var nz = nz2 > 0f ? (float)Math.Sqrt(nz2) : 0f;
 
-            // Remap to [0..255]
-            var outR = (byte)MathF.Round((nx * 0.5f + 0.5f) * 255f);
-            var outG = (byte)MathF.Round((ny * 0.5f + 0.5f) * 255f);
-            var outB = (byte)MathF.Round((nz * 0.5f + 0.5f) * 255f);
+                // Remap to [0..255]
+                var outR = (byte)MathF.Round((nx * 0.5f + 0.5f) * 255f);
+                var outG = (byte)MathF.Round((ny * 0.5f + 0.5f) * 255f);
+                var outB = (byte)MathF.Round((nz * 0.5f + 0.5f) * 255f);
 
-            // Spec map: use red channel (or luminance). We use red here.
-            var outA = spx.R;
+                // Spec map: use red channel (or luminance). We use red here.
+                var outA = spx.R;
 
-            combined[x, y] = new Rgba32(outR, outG, outB, outA);
+                combined[x, y] = new Rgba32(outR, outG, outB, outA);
+            }
         }
 
         // Encode to DXT5 / BC3 using BCnEncoder

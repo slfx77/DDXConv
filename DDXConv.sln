@@ -4,6 +4,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DDXConv", "DDXConv\DDXConv.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XCompression", "XCompression\XCompression.csproj", "{5978A15D-EBE6-4BAA-93D3-A54BDF5AA0EA}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DDXConv.Tests", "DDXConv.Tests\DDXConv.Tests.csproj", "{B0A6AA19-6B2B-4F2A-9C4C-0D1F2B49B8C3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +20,9 @@ Global
 		{5978A15D-EBE6-4BAA-93D3-A54BDF5AA0EA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5978A15D-EBE6-4BAA-93D3-A54BDF5AA0EA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5978A15D-EBE6-4BAA-93D3-A54BDF5AA0EA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B0A6AA19-6B2B-4F2A-9C4C-0D1F2B49B8C3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B0A6AA19-6B2B-4F2A-9C4C-0D1F2B49B8C3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B0A6AA19-6B2B-4F2A-9C4C-0D1F2B49B8C3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B0A6AA19-6B2B-4F2A-9C4C-0D1F2B49B8C3}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

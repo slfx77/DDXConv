@@ -56,6 +56,7 @@ var progressMode = opts.Contains("--progress") || opts.Contains("-p");
 
 // Thread-safe console output for progress mode
 var consoleLock = new object();
+
 void WriteProgress(string status, string path, string? error = null)
 {
     if (!progressMode) return;
@@ -125,9 +126,12 @@ if (Directory.Exists(inputPath))
                             failed[error] = new List<string>();
                         failed[error].Add(ddxFile);
                     }
+
                     return;
                 }
-                if (!verbose && !progressMode) Console.Write($"\rConverted {successes} / {ddxFiles.Length} files, {errors} failed...");
+
+                if (!verbose && !progressMode)
+                    Console.Write($"\rConverted {successes} / {ddxFiles.Length} files, {errors} failed...");
             }
             else
             {
@@ -168,7 +172,9 @@ if (Directory.Exists(inputPath))
             }
         }
 
-        if (!verbose && !progressMode) Console.Write($"\rConverted {successes} / {ddxFiles.Length} files, {errors} failed, {invalids} unsupported...");
+        if (!verbose && !progressMode)
+            Console.Write(
+                $"\rConverted {successes} / {ddxFiles.Length} files, {errors} failed, {invalids} unsupported...");
     });
 
     if (progressMode)

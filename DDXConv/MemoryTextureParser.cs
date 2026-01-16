@@ -122,7 +122,8 @@ public class MemoryTextureParser
         if (magic == 0x52445833) // "3XDR"
             return new ConversionResult
             {
-                Success = false, Error = "3XDR format not yet supported for memory textures"
+                Success = false,
+                Error = "3XDR format not yet supported for memory textures"
             };
 
         // Not a DDX file - could be raw GPU texture data
@@ -153,7 +154,8 @@ public class MemoryTextureParser
             if (version < 3)
                 return new ConversionResult
                 {
-                    Success = false, Error = $"DDX version {version} not supported (need >= 3)"
+                    Success = false,
+                    Error = $"DDX version {version} not supported (need >= 3)"
                 };
 
             // Read D3DTexture header (go back 1 byte, read 52 bytes)
@@ -198,7 +200,7 @@ public class MemoryTextureParser
     /// </summary>
     private byte[] DecompressTextureData(byte[] compressed, int width, int height, uint format)
     {
-        var expectedSize = (uint)CalculateMipSize(width, height, format);
+        var expectedSize = (uint)TextureUtilities.CalculateMipSize(width, height, format);
         var chunks = new List<byte[]>();
         var totalConsumed = 0;
 
@@ -254,7 +256,7 @@ public class MemoryTextureParser
     private ConversionResult ProcessMemoryTextureData(byte[] data, int width, int height,
         TextureInfo texture, bool saveAtlas)
     {
-        var mainSurfaceSize = CalculateMipSize(width, height, texture.ActualFormat);
+        var mainSurfaceSize = TextureUtilities.CalculateMipSize(width, height, texture.ActualFormat);
 
         // Determine the layout based on data size
         if (data.Length == mainSurfaceSize)
@@ -324,7 +326,7 @@ public class MemoryTextureParser
         var mips = ExtractPackedMips(fullUntiled, atlasWidth, atlasHeight, baseWidth, baseHeight,
             texture.ActualFormat);
 
-        if (mips != null && mips.Count >= 2)
+        if (mips is { Count: >= 2 })
         {
             // Success - combine mips into DDS
             var totalSize = mips.Sum(m => m.Length);
@@ -373,14 +375,14 @@ public class MemoryTextureParser
     private List<byte[]>? ExtractPackedMips(byte[] atlasData, int atlasWidth, int atlasHeight,
         int baseWidth, int baseHeight, uint format)
     {
-        _ = GetBlockSize(format); // blockSize not directly used here but validates format
+        _ = TextureUtilities.GetBlockSize(format); // blockSize not directly used here but validates format
         var mips = new List<byte[]>();
 
         // Extract base mip from top-left quadrant
         var baseMip = ExtractRegion(atlasData, atlasWidth, 0, 0, baseWidth, baseHeight, format);
         if (baseMip == null) return null;
 
-        var expectedBaseSize = CalculateMipSize(baseWidth, baseHeight, format);
+        var expectedBaseSize = TextureUtilities.CalculateMipSize(baseWidth, baseHeight, format);
         if (baseMip.Length != expectedBaseSize) return null;
 
         mips.Add(baseMip);
@@ -397,7 +399,7 @@ public class MemoryTextureParser
         while (mipW >= 4 && mipH >= 4 && mipX + mipW <= atlasWidth && mipY + mipH <= atlasHeight)
         {
             var mip = ExtractRegion(atlasData, atlasWidth, mipX, mipY, mipW, mipH, format);
-            var expectedSize = CalculateMipSize(mipW, mipH, format);
+            var expectedSize = TextureUtilities.CalculateMipSize(mipW, mipH, format);
 
             if (mip == null || mip.Length != expectedSize) break;
 
@@ -433,7 +435,7 @@ public class MemoryTextureParser
 
         while (mipW >= 4 && mipH >= 4 && mipOffset < data.Length)
         {
-            var mipSize = CalculateMipSize(mipW, mipH, texture.ActualFormat);
+            var mipSize = TextureUtilities.CalculateMipSize(mipW, mipH, texture.ActualFormat);
             if (mipOffset + mipSize > data.Length) break;
 
             var mipTiled = new byte[mipSize];
@@ -579,7 +581,7 @@ public class MemoryTextureParser
     /// </summary>
     private static byte[] UntileTexture(byte[] src, int width, int height, uint format)
     {
-        var blockSize = GetBlockSize(format);
+        var blockSize = TextureUtilities.GetBlockSize(format);
         var blocksWide = width / 4;
         var blocksHigh = height / 4;
         var dst = new byte[src.Length];
@@ -613,7 +615,7 @@ public class MemoryTextureParser
     private static byte[]? ExtractRegion(byte[] atlas, int atlasWidth,
         int regionX, int regionY, int regionWidth, int regionHeight, uint format)
     {
-        var blockSize = GetBlockSize(format);
+        var blockSize = TextureUtilities.GetBlockSize(format);
         var atlasBlocksX = atlasWidth / 4;
         var regionBlocksX = regionWidth / 4;
         var regionBlocksY = regionHeight / 4;
@@ -639,36 +641,6 @@ public class MemoryTextureParser
         }
 
         return output;
-    }
-
-    private static int GetBlockSize(uint format)
-    {
-        return format switch
-        {
-            0x52 or 0x7B or 0x82 or 0x86 or 0x12 => 8, // DXT1, ATI1/BC4
-            _ => 16 // DXT3, DXT5, ATI2/BC5
-        };
-    }
-
-    private static int CalculateMipSize(int width, int height, uint format)
-    {
-        var blockSize = GetBlockSize(format);
-        var blocksX = Math.Max(1, width / 4);
-        var blocksY = Math.Max(1, height / 4);
-        return blocksX * blocksY * blockSize;
-    }
-
-    private static int CalculateMipLevels(int width, int height)
-    {
-        var levels = 1;
-        while (width > 4 && height > 4)
-        {
-            width /= 2;
-            height /= 2;
-            levels++;
-        }
-
-        return levels;
     }
 
     #endregion
@@ -714,7 +686,7 @@ public class MemoryTextureParser
         writer.Write(width); // dwWidth
 
         // Calculate pitch/linear size
-        var blockSize = GetBlockSize(texture.ActualFormat);
+        var blockSize = TextureUtilities.GetBlockSize(texture.ActualFormat);
         var linearSize = Math.Max(1, width / 4) * Math.Max(1, height / 4) * blockSize;
         writer.Write(linearSize); // dwPitchOrLinearSize
 
