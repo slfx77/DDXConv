@@ -1,4 +1,4 @@
-using XCompression;
+using DDXConv.Compression;
 
 namespace DDXConv;
 
@@ -30,33 +30,6 @@ public class DdxParser(bool verbose = false)
 {
     private const uint MAGIC_3XDO = 0x4F445833;
     private const uint MAGIC_3XDR = 0x52445833;
-
-    private static readonly byte[,] _pFirstTilingRectsA = new byte[4, 3]
-    {
-        { 0x00, 0x02, 0x03 }, { 0x12, 0x16, 0x18 }, { 0x04, 0x0C, 0x10 }, { 0x00, 0x02, 0x03 }
-    };
-
-    private static readonly TextureTileRectDef[] _pTextureTileRectsA =
-    [
-        new() { cByteOffsetX = 0, cLineOffsetY = 0, cBytesWide = 128, cLinesHigh = 8 },
-        new() { cByteOffsetX = 128, cLineOffsetY = 16, cBytesWide = 128, cLinesHigh = 8 },
-        new() { cByteOffsetX = 0, cLineOffsetY = 0, cBytesWide = 64, cLinesHigh = 8 },
-        new() { cByteOffsetX = 0, cLineOffsetY = 0, cBytesWide = 64, cLinesHigh = 4 },
-        new() { cByteOffsetX = 0, cLineOffsetY = 0, cBytesWide = 128, cLinesHigh = 4 },
-        new() { cByteOffsetX = 256, cLineOffsetY = 0, cBytesWide = 128, cLinesHigh = 4 },
-        new() { cByteOffsetX = 0, cLineOffsetY = 8, cBytesWide = 128, cLinesHigh = 4 },
-        // entries continue as present in the extracted file
-        new() { cByteOffsetX = 128, cLineOffsetY = 32, cBytesWide = 128, cLinesHigh = 8 },
-        new() { cByteOffsetX = 128, cLineOffsetY = 48, cBytesWide = 128, cLinesHigh = 8 },
-        new() { cByteOffsetX = 0, cLineOffsetY = 0, cBytesWide = 64, cLinesHigh = 8 },
-        new() { cByteOffsetX = 0, cLineOffsetY = 16, cBytesWide = 64, cLinesHigh = 8 },
-        new() { cByteOffsetX = 0, cLineOffsetY = 0, cBytesWide = 64, cLinesHigh = 8 }
-    ];
-
-    private static readonly byte[,] _pTilingRectCountsA = new byte[4, 3]
-    {
-        { 2, 1, 1 }, { 4, 2, 1 }, { 8, 4, 2 }, { 2, 1, 1 }
-    };
 
     private readonly bool _verboseLogging = verbose;
 
@@ -146,22 +119,9 @@ public class DdxParser(bool verbose = false)
             Console.WriteLine($"3XDR: Saved DDS to {outputPath} ({textureData.Length} bytes, {mipLevels} mip(s))");
     }
 
-    /// <summary>
-    ///     Swap every 16-bit word in the data (Xbox 360 to PC endian conversion).
-    /// </summary>
     private static byte[] SwapEvery16Bits(byte[] src)
     {
-        var dst = new byte[src.Length];
-        for (var i = 0; i < src.Length - 1; i += 2)
-        {
-            dst[i] = src[i + 1];
-            dst[i + 1] = src[i];
-        }
-
-        // Handle odd byte at end if present
-        if ((src.Length & 1) == 1) dst[src.Length - 1] = src[src.Length - 1];
-
-        return dst;
+        return TextureUtilities.SwapEndian16(src);
     }
 
     /// <summary>
@@ -180,77 +140,7 @@ public class DdxParser(bool verbose = false)
     /// </summary>
     private static byte[] Untile2x2MacroBlocks(byte[] src, int width, int height, int blockSize)
     {
-        var blocksX = Math.Max(1, (width + 3) / 4);
-        var blocksY = Math.Max(1, (height + 3) / 4);
-        var mipSize = blocksX * blocksY * blockSize;
-
-        var dst = new byte[mipSize];
-
-        // For very small textures (< 8 blocks in X or < 2 in Y), no tiling needed
-        if (blocksY < 2 || blocksX < 8)
-        {
-            Array.Copy(src, dst, Math.Min(src.Length, mipSize));
-            return dst;
-        }
-
-        // Process each Xbox block and place it in the correct PC position
-        for (var xboxIdx = 0; xboxIdx < blocksX * blocksY; xboxIdx++)
-        {
-            var xboxX = xboxIdx % blocksX;
-            var xboxY = xboxIdx / blocksX;
-
-            // Calculate PC position based on discovered mapping
-            var pcIdx = GetPcBlockIndex(xboxX, xboxY, blocksX);
-
-            var srcOffset = xboxIdx * blockSize;
-            var dstOffset = pcIdx * blockSize;
-
-            if (srcOffset + blockSize <= src.Length && dstOffset + blockSize <= dst.Length)
-                Array.Copy(src, srcOffset, dst, dstOffset, blockSize);
-        }
-
-        return dst;
-    }
-
-    /// <summary>
-    ///     Calculate PC block index from Xbox block position.
-    ///     Based on empirical mapping analysis from block-by-block comparison.
-    ///     The tiling operates on 8×2 block groups with this transformation:
-    ///     Xbox row 0 (Y=0 within group):
-    ///     Xbox X: 0  1  2  3  4  5  6  7
-    ///     PC X:   0  1  0  1  2  3  2  3
-    ///     PC Y:   0  0  1  1  0  0  1  1
-    ///     Xbox row 1 (Y=1 within group):
-    ///     Xbox X: 0  1  2  3  4  5  6  7
-    ///     PC X:   4  5  4  5  6  7  6  7
-    ///     PC Y:   0  0  1  1  0  0  1  1
-    ///     Formula:
-    ///     pcLocalX = localY * 4 + (localX / 4) * 2 + (localX % 2)
-    ///     pcLocalY = (localX / 2) % 2
-    ///     This is a small bit permutation (bit swizzle) within the 8x2 group.
-    /// </summary>
-    private static int GetPcBlockIndex(int xboxX, int xboxY, int blocksX)
-    {
-        // Determine which 8×2 group this block belongs to
-        var groupX = xboxX / 8;
-        var groupY = xboxY / 2;
-
-        // Position within the 8×2 group
-        var localX = xboxX % 8;
-        var localY = xboxY % 2;
-
-        // Apply the transformation formula derived from block mapping analysis.
-        // Equivalent form:
-        // pcLocalX = localY * 4 + (localX / 4) * 2 + (localX % 2)
-        // pcLocalY = (localX / 2) % 2
-        var pcLocalX = (localY << 2) | ((localX >> 2) << 1) | (localX & 1);
-        var pcLocalY = (localX >> 1) & 1;
-
-        // Convert back to absolute PC coordinates
-        var pcX = groupX * 8 + pcLocalX;
-        var pcY = groupY * 2 + pcLocalY;
-
-        return pcY * blocksX + pcX;
+        return TextureUtilities.UntileMacroBlocks(src, width, height, blockSize);
     }
 
     // Some of this code build from analyzing NiXenonSourceTextureData::CreateFromDDXFile, some from file analysis
@@ -523,9 +413,9 @@ public class DdxParser(bool verbose = false)
             }
             else if (magic == MAGIC_3XDR)
             {
-                var assembled =
-                    ApplyEngineTilingFor3xdr(chunk1, atlasWidth, atlasHeight, texture.ActualFormat, texture);
-                untiledAtlas = UnswizzleDXTTexture(assembled, atlasWidth, atlasHeight, texture.ActualFormat);
+                var bs = TextureUtilities.GetBlockSize(texture.ActualFormat);
+                var untiled = Untile2x2MacroBlocks(chunk1, atlasWidth, atlasHeight, bs);
+                untiledAtlas = SwapEvery16Bits(untiled);
             }
             else
             {
@@ -723,7 +613,8 @@ public class DdxParser(bool verbose = false)
                     var chunk2Width = 64;
                     var chunkHeight = 256;
 
-                    var horizontalChunk1Size = TextureUtilities.CalculateMipSize(chunk1Width, chunkHeight, texture.ActualFormat);
+                    var horizontalChunk1Size =
+                        TextureUtilities.CalculateMipSize(chunk1Width, chunkHeight, texture.ActualFormat);
                     var horizontalChunk2Size = mainData.Length - horizontalChunk1Size;
 
                     if (_verboseLogging)
@@ -775,7 +666,8 @@ public class DdxParser(bool verbose = false)
 
                         // For a 128x128 mip: 16384 bytes
                         // Check if we have exactly one mip's worth
-                        var expectedMip1Size = TextureUtilities.CalculateMipSize(width / 2, height / 2, texture.ActualFormat);
+                        var expectedMip1Size =
+                            TextureUtilities.CalculateMipSize(width / 2, height / 2, texture.ActualFormat);
                         if (remainingSize == expectedMip1Size)
                         {
                             if (_verboseLogging)
@@ -817,7 +709,8 @@ public class DdxParser(bool verbose = false)
                 // Check if this looks like an atlas chunk (roughly half of full texture size with mips)
                 // Atlas typically contains mip levels 1+ packed together
                 var estimatedAtlasSize =
-                    TextureUtilities.CalculateMipSize(width, height, texture.ActualFormat); // Size of one surface at this resolution
+                    TextureUtilities.CalculateMipSize(width, height,
+                        texture.ActualFormat); // Size of one surface at this resolution
                 var isLikelyAtlas = mainData.Length >= estimatedAtlasSize / 4 && mainData.Length <= estimatedAtlasSize;
 
                 if (isLikelyAtlas && width >= 128 && height >= 128)
@@ -888,9 +781,11 @@ public class DdxParser(bool verbose = false)
                     var topHalf = ExtractAtlasRegion(untiledAtlas, new AtlasRegionParams(
                         atlasWidth, atlasHeight, 0, 0, largestMipWidth, halfHeight, texture.ActualFormat));
                     var bottomHalf = ExtractAtlasRegion(untiledAtlas, new AtlasRegionParams(
-                        atlasWidth, atlasHeight, largestMipWidth, 0, largestMipWidth, halfHeight, texture.ActualFormat));
+                        atlasWidth, atlasHeight, largestMipWidth, 0, largestMipWidth, halfHeight,
+                        texture.ActualFormat));
 
-                    var expectedHalfSize = TextureUtilities.CalculateMipSize(largestMipWidth, halfHeight, texture.ActualFormat);
+                    var expectedHalfSize =
+                        TextureUtilities.CalculateMipSize(largestMipWidth, halfHeight, texture.ActualFormat);
 
                     if (topHalf != null && bottomHalf != null &&
                         topHalf.Length == expectedHalfSize && bottomHalf.Length == expectedHalfSize)
@@ -1226,34 +1121,81 @@ public class DdxParser(bool verbose = false)
             }
         }
 
+        // Validate mip count against actual data size — some code paths claim the theoretical
+        // max mip count but the atlas extraction may not have produced data for all levels.
+        var validatedMips = CountMipLevelsFromDataSize(
+            texture.Width, texture.Height, texture.ActualFormat, linearData.Length);
+        if (validatedMips < texture.MipLevels)
+        {
+            if (_verboseLogging)
+                Console.WriteLine(
+                    $"Correcting mip count: header claimed {texture.MipLevels} but data only contains {validatedMips}");
+            texture.MipLevels = validatedMips;
+
+            // Trim trailing data that doesn't belong to any complete mip level
+            var expectedSize =
+                (int)TextureUtilities.CalculateMainDataSize(texture.Width, texture.Height, texture.ActualFormat,
+                    validatedMips);
+            if (linearData.Length > expectedSize)
+                linearData = linearData[..expectedSize];
+        }
+
         // Convert to DDS and write
         if (outputPath != null) WriteDdsFile(outputPath, texture, linearData);
     }
 
+    private static bool UseXCompression =>
+        Environment.GetEnvironmentVariable("DDXCONV_USE_XCOMPRESSION") == "1";
+
     private byte[] DecompressXMemCompress(byte[] compressedData, uint uncompressedSize, out int bytesConsumed)
     {
-        var decompressedData = new byte[uncompressedSize * 2]; // Double the buffer to be safe
+        if (UseXCompression)
+            return DecompressViaXCompression(compressedData, uncompressedSize, _verboseLogging, out bytesConsumed);
 
-        using (var context = new DecompressionContext())
-        {
-            var compressedLen = compressedData.Length;
-            var decompressedLen = decompressedData.Length;
+        return DecompressViaLzx(compressedData, uncompressedSize, _verboseLogging, out bytesConsumed);
+    }
 
-            var result = context.Decompress(
-                compressedData, 0, ref compressedLen,
-                decompressedData, 0, ref decompressedLen);
+    // Separate methods so the JIT only loads XCompression assembly when this path is actually taken
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static byte[] DecompressViaXCompression(byte[] compressedData, uint uncompressedSize, bool verbose, out int bytesConsumed)
+    {
+        var decompressedData = new byte[uncompressedSize * 2];
+        using var context = new XCompression.DecompressionContext();
+        var compressedLen = compressedData.Length;
+        var decompressedLen = decompressedData.Length;
 
-            if (result != ErrorCode.None)
-                throw new InvalidOperationException($"XMemCompress decompression failed: {result}");
+        var result = context.Decompress(
+            compressedData, 0, ref compressedLen,
+            decompressedData, 0, ref decompressedLen);
 
-            if (_verboseLogging) Console.WriteLine($"Decompressed {compressedLen} -> {decompressedLen} bytes");
+        if (result != XCompression.ErrorCode.None)
+            throw new InvalidOperationException($"XCompression decompression failed: {result}");
 
-            bytesConsumed = compressedLen;
+        if (verbose) Console.WriteLine($"[XCompression] Decompressed {compressedLen} -> {decompressedLen} bytes");
 
-            // Trim to actual decompressed size
-            if (decompressedLen < decompressedData.Length) Array.Resize(ref decompressedData, decompressedLen);
-        }
+        bytesConsumed = compressedLen;
+        if (decompressedLen < decompressedData.Length) Array.Resize(ref decompressedData, decompressedLen);
+        return decompressedData;
+    }
 
+    private static byte[] DecompressViaLzx(byte[] compressedData, uint uncompressedSize, bool verbose, out int bytesConsumed)
+    {
+        var decompressedData = new byte[uncompressedSize * 2];
+        using var decompressor = new LzxDecompressor();
+        var compressedLen = compressedData.Length;
+        var decompressedLen = decompressedData.Length;
+
+        var result = decompressor.Decompress(
+            compressedData, 0, ref compressedLen,
+            decompressedData, 0, ref decompressedLen);
+
+        if (result != 0)
+            throw new InvalidOperationException($"LzxDecompressor decompression failed: {result}");
+
+        if (verbose) Console.WriteLine($"[LzxDecompressor] Decompressed {compressedLen} -> {decompressedLen} bytes");
+
+        bytesConsumed = compressedLen;
+        if (decompressedLen < decompressedData.Length) Array.Resize(ref decompressedData, decompressedLen);
         return decompressedData;
     }
 
@@ -1331,17 +1273,26 @@ public class DdxParser(bool verbose = false)
         info.Endian = (dword0 >> 26) & 0x3;
         info.Tiled = ((dword0 >> 19) & 1) != 0;
 
+        // NOTE: The DDX file stores format dwords in a different layout than the raw
+        // xe_gpu_texture_fetch_t structure documented in Xenia. Bit positions for Tiled,
+        // Endian, and PackedMips read as 0/false for all tested textures, indicating the
+        // byte ordering or field mapping differs. DDXConv determines tiling from the file
+        // magic (3XDO=Morton, 3XDR=macro-block), endianness is always swapped, and mip
+        // presence is detected from chunk count + data size heuristics.
+
         // Store the actual format for untiling
         info.ActualFormat = actualFormat != 0 ? actualFormat : info.DataFormat;
 
         // Determine DDS format
         info.Format = TextureUtilities.GetDxgiFormat(info.ActualFormat);
 
-        // Calculate mip levels from dimensions
+        // Calculate mip levels from dimensions — this is the theoretical max; the actual
+        // count is validated against data size before writing (see CountMipLevelsFromDataSize)
         info.MipLevels = TextureUtilities.CalculateMipLevels(info.Width, info.Height);
 
         // Calculate main data size (before mip tail)
-        info.MainDataSize = TextureUtilities.CalculateMainDataSize(info.Width, info.Height, info.ActualFormat, info.MipLevels);
+        info.MainDataSize =
+            TextureUtilities.CalculateMainDataSize(info.Width, info.Height, info.ActualFormat, info.MipLevels);
 
         return info;
     }
@@ -1556,6 +1507,30 @@ public class DdxParser(bool verbose = false)
         return new PackedMipAtlasResult { Data = result, MipCount = mipDataList.Count };
     }
 
+    /// <summary>
+    ///     Count how many complete mip levels fit in the given data size.
+    /// </summary>
+    private static uint CountMipLevelsFromDataSize(uint width, uint height, uint format, int dataLength)
+    {
+        uint levels = 0;
+        var w = width;
+        var h = height;
+        var offset = 0;
+
+        while (true)
+        {
+            var mipSize = (int)TextureUtilities.CalculateMipSize(w, h, format);
+            if (offset + mipSize > dataLength) break;
+            offset += mipSize;
+            levels++;
+            if (w == 1 && h == 1) break;
+            w = Math.Max(1, w / 2);
+            h = Math.Max(1, h / 2);
+        }
+
+        return Math.Max(1, levels);
+    }
+
     private void WriteDdsFile(string outputPath, D3DTextureInfo texture, byte[] mainData)
     {
         if (_verboseLogging)
@@ -1643,89 +1618,8 @@ public class DdxParser(bool verbose = false)
 
     private byte[] UnswizzleDXTTexture(byte[] src, int width, int height, uint format)
     {
-        // Determine block size based on format
-        int blockSize;
-        switch (format)
-        {
-            case 0x52: // DXT1
-            case 0x7B: // ATI1/BC4 (single channel, same block size as DXT1)
-            case 0x82: // DXT1 variant
-            case 0x86: // DXT1 variant
-            case 0x12: // GPUTEXTUREFORMAT_DXT1
-                blockSize = 8;
-                break;
-
-            case 0x53: // DXT3
-            case 0x54: // DXT5
-            case 0x71: // DXT5 variant (normal maps)
-            case 0x88: // DXT5 variant
-            case 0x13: // GPUTEXTUREFORMAT_DXT2/3
-            case 0x14: // GPUTEXTUREFORMAT_DXT4/5
-                blockSize = 16;
-                break;
-
-            default:
-                return src; // Unknown format, return as-is
-        }
-
-        var blocksWide = width / 4;
-        var blocksHigh = height / 4;
-        var dst = new byte[src.Length];
-
-        // Xbox 360 tiling algorithm from Xenia emulator
-        // Bytes per pixel (log2) - for DXT blocks
-        var log2Bpp = (uint)(blockSize / 4 + ((blockSize / 2) >> (blockSize / 4)));
-
-        for (var y = 0; y < blocksHigh; y++)
-        {
-            var inputRowOffset = TiledOffset2DRow((uint)y, (uint)blocksWide, log2Bpp);
-
-            for (var x = 0; x < blocksWide; x++)
-            {
-                var inputOffset = TiledOffset2DColumn((uint)x, (uint)y, log2Bpp, inputRowOffset);
-                inputOffset >>= (int)log2Bpp;
-
-                var srcOffset = (int)(inputOffset * blockSize);
-                var dstOffset = (y * blocksWide + x) * blockSize;
-
-                if (srcOffset + blockSize <= src.Length && dstOffset + blockSize <= dst.Length)
-                {
-                    // Copy block and fix endianness for each 16-bit word if the option permits
-                    if (_currentOptions == null || !_currentOptions.SkipEndianSwap)
-                        for (var i = 0; i < blockSize; i += 2)
-                        {
-                            // Xbox 360 is big-endian, swap bytes
-                            dst[dstOffset + i] = src[srcOffset + i + 1];
-                            dst[dstOffset + i + 1] = src[srcOffset + i];
-                        }
-                    else
-                        // Skip swapping - just copy raw block bytes
-                        for (var i = 0; i < blockSize; i++)
-                            dst[dstOffset + i] = src[srcOffset + i];
-                }
-            }
-        }
-
-        return dst;
-    }
-
-    // Xbox 360 tiling functions from Xenia emulator
-    // https://github.com/xenia-project/xenia/blob/master/src/xenia/gpu/texture_conversion.cc
-    private static uint TiledOffset2DRow(uint y, uint width, uint log2Bpp)
-    {
-        var macro = (y / 32 * (width / 32)) << (int)(log2Bpp + 7);
-        var micro = (y & 6) << 2 << (int)log2Bpp;
-        return macro + ((micro & ~0xFu) << 1) + (micro & 0xF) +
-               ((y & 8) << (int)(3 + log2Bpp)) + ((y & 1) << 4);
-    }
-
-    private static uint TiledOffset2DColumn(uint x, uint y, uint log2Bpp, uint baseOffset)
-    {
-        var macro = (x / 32) << (int)(log2Bpp + 7);
-        var micro = (x & 7) << (int)log2Bpp;
-        var offset = baseOffset + macro + ((micro & ~0xFu) << 1) + (micro & 0xF);
-        return ((offset & ~0x1FFu) << 3) + ((offset & 0x1C0) << 2) + (offset & 0x3F) +
-               ((y & 16) << 7) + (((((y & 8) >> 2) + (x >> 3)) & 3) << 6);
+        var swapEndian = _currentOptions == null || !_currentOptions.SkipEndianSwap;
+        return TextureUtilities.UnswizzleMortonDXT(src, width, height, format, swapEndian);
     }
 
     private static byte[] InterleaveHorizontalChunks(byte[] leftChunk, byte[] rightChunk, int leftWidth, int rightWidth,
@@ -1913,27 +1807,27 @@ public class DdxParser(bool verbose = false)
 
             // 512/4 * 256/4 = 128 * 64 blocks for each half
             for (var by = 0; by < 64; by++)
-                for (var bx = 0; bx < 128; bx++)
-                {
-                    var srcOffset = (by * atlasWidthInBlocks + bx) * blockSize;
-                    if (srcOffset + blockSize <= atlasData.Length && outputOffset + blockSize <= output.Length)
-                        Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
+            for (var bx = 0; bx < 128; bx++)
+            {
+                var srcOffset = (by * atlasWidthInBlocks + bx) * blockSize;
+                if (srcOffset + blockSize <= atlasData.Length && outputOffset + blockSize <= output.Length)
+                    Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
 
-                    outputOffset += blockSize;
-                }
+                outputOffset += blockSize;
+            }
 
             // Extract bottom half at (512, 0) = block (128, 0)
             for (var by = 0; by < 64; by++)
-                for (var bx = 0; bx < 128; bx++)
-                {
-                    var srcBlockX = 128 + bx;
-                    var srcBlockY = by;
-                    var srcOffset = (srcBlockY * atlasWidthInBlocks + srcBlockX) * blockSize;
-                    if (srcOffset + blockSize <= atlasData.Length && outputOffset + blockSize <= output.Length)
-                        Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
+            for (var bx = 0; bx < 128; bx++)
+            {
+                var srcBlockX = 128 + bx;
+                var srcBlockY = by;
+                var srcOffset = (srcBlockY * atlasWidthInBlocks + srcBlockX) * blockSize;
+                if (srcOffset + blockSize <= atlasData.Length && outputOffset + blockSize <= output.Length)
+                    Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
 
-                    outputOffset += blockSize;
-                }
+                outputOffset += blockSize;
+            }
 
             // After top/bottom halves for mip 0, save mip 0 if requested
             var mip0End = outputOffset;
@@ -1969,25 +1863,25 @@ public class DdxParser(bool verbose = false)
             var mip1Start = outputOffset;
             // Top half: (0, 256) = block (0, 64), size 256x128 = 64x32 blocks
             for (var by = 0; by < 32; by++)
-                for (var bx = 0; bx < 64; bx++)
-                {
-                    var srcOffset = ((64 + by) * atlasWidthInBlocks + bx) * blockSize;
-                    if (srcOffset + blockSize <= atlasData.Length && outputOffset + blockSize <= output.Length)
-                        Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
+            for (var bx = 0; bx < 64; bx++)
+            {
+                var srcOffset = ((64 + by) * atlasWidthInBlocks + bx) * blockSize;
+                if (srcOffset + blockSize <= atlasData.Length && outputOffset + blockSize <= output.Length)
+                    Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
 
-                    outputOffset += blockSize;
-                }
+                outputOffset += blockSize;
+            }
 
             // Bottom half: (256, 256) = block (64, 64)
             for (var by = 0; by < 32; by++)
-                for (var bx = 0; bx < 64; bx++)
-                {
-                    var srcOffset = ((64 + by) * atlasWidthInBlocks + 64 + bx) * blockSize;
-                    if (srcOffset + blockSize <= atlasData.Length && outputOffset + blockSize <= output.Length)
-                        Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
+            for (var bx = 0; bx < 64; bx++)
+            {
+                var srcOffset = ((64 + by) * atlasWidthInBlocks + 64 + bx) * blockSize;
+                if (srcOffset + blockSize <= atlasData.Length && outputOffset + blockSize <= output.Length)
+                    Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
 
-                    outputOffset += blockSize;
-                }
+                outputOffset += blockSize;
+            }
 
             // After top/bottom halves for mip 1, save mip 1 if requested
             var mip1End = outputOffset;
@@ -2040,17 +1934,17 @@ public class DdxParser(bool verbose = false)
                     Console.WriteLine($"Extracting mip {i + 2}: {mipW}x{mipH} from atlas position ({mipX}, {mipY})");
 
                 for (var by = 0; by < mipHeightInBlocks; by++)
-                    for (var bx = 0; bx < mipWidthInBlocks; bx++)
-                    {
-                        var srcBlockX = mipXInBlocks + bx;
-                        var srcBlockY = mipYInBlocks + by;
-                        var srcOffset = (srcBlockY * atlasWidthInBlocks + srcBlockX) * blockSize;
+                for (var bx = 0; bx < mipWidthInBlocks; bx++)
+                {
+                    var srcBlockX = mipXInBlocks + bx;
+                    var srcBlockY = mipYInBlocks + by;
+                    var srcOffset = (srcBlockY * atlasWidthInBlocks + srcBlockX) * blockSize;
 
-                        if (srcOffset + blockSize <= atlasData.Length && outputOffset + blockSize <= output.Length)
-                            Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
+                    if (srcOffset + blockSize <= atlasData.Length && outputOffset + blockSize <= output.Length)
+                        Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
 
-                        outputOffset += blockSize;
-                    }
+                    outputOffset += blockSize;
+                }
 
                 // Save each of these small non-split mips, if requested
                 if (saveMips && outputPath != null)
@@ -2216,24 +2110,24 @@ public class DdxParser(bool verbose = false)
 
             // Extract this mip from the atlas
             for (var by = 0; by < mipHeightInBlocks; by++)
-                for (var bx = 0; bx < mipWidthInBlocks; bx++)
+            for (var bx = 0; bx < mipWidthInBlocks; bx++)
+            {
+                var srcBlockX = mipXInBlocks + bx;
+                var srcBlockY = mipYInBlocks + by;
+                var srcOffset = (srcBlockY * atlasWidthInBlocks + srcBlockX) * blockSize;
+
+                if (srcBlockX >= 0 && srcBlockX < atlasWBlocks && srcBlockY >= 0 && srcBlockY < atlasHBlocks
+                    && srcOffset + blockSize <= atlasData.Length && outputOffset + blockSize <= output.Length)
                 {
-                    var srcBlockX = mipXInBlocks + bx;
-                    var srcBlockY = mipYInBlocks + by;
-                    var srcOffset = (srcBlockY * atlasWidthInBlocks + srcBlockX) * blockSize;
-
-                    if (srcBlockX >= 0 && srcBlockX < atlasWBlocks && srcBlockY >= 0 && srcBlockY < atlasHBlocks
-                        && srcOffset + blockSize <= atlasData.Length && outputOffset + blockSize <= output.Length)
-                    {
-                        Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
-                        usedBlocks[srcBlockY, srcBlockX] = true;
-                        if (saveMips && bx == 0 && by == 0 && _verboseLogging)
-                            Console.WriteLine(
-                                $"Mip {mipLevel} first block srcBlock=({srcBlockX},{srcBlockY}) srcOffset={srcOffset} dstOffset={outputOffset}");
-                    }
-
-                    outputOffset += blockSize;
+                    Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
+                    usedBlocks[srcBlockY, srcBlockX] = true;
+                    if (saveMips && bx == 0 && by == 0 && _verboseLogging)
+                        Console.WriteLine(
+                            $"Mip {mipLevel} first block srcBlock=({srcBlockX},{srcBlockY}) srcOffset={srcOffset} dstOffset={outputOffset}");
                 }
+
+                outputOffset += blockSize;
+            }
 
             // After copying all blocks for the mip, write out the mip as a separate DDS if requested
             var mipEndOffset = outputOffset;
@@ -2277,18 +2171,18 @@ public class DdxParser(bool verbose = false)
                 Console.WriteLine("UnpackMipAtlas: filling remaining mip tail from unused atlas blocks");
 
             for (var by = 0; by < height / 4 && outputOffset < desiredTailBytes; by++)
-                for (var bx = 0; bx < atlasWidthInBlocks && outputOffset < desiredTailBytes; bx++)
-                {
-                    if (usedBlocks[by, bx]) continue;
+            for (var bx = 0; bx < atlasWidthInBlocks && outputOffset < desiredTailBytes; bx++)
+            {
+                if (usedBlocks[by, bx]) continue;
 
-                    var srcOffset = (by * atlasWidthInBlocks + bx) * blockSize;
-                    if (srcOffset + blockSize <= atlasData.Length && outputOffset + blockSize <= output.Length)
-                    {
-                        Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
-                        usedBlocks[by, bx] = true;
-                        outputOffset += blockSize;
-                    }
+                var srcOffset = (by * atlasWidthInBlocks + bx) * blockSize;
+                if (srcOffset + blockSize <= atlasData.Length && outputOffset + blockSize <= output.Length)
+                {
+                    Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
+                    usedBlocks[by, bx] = true;
+                    outputOffset += blockSize;
                 }
+            }
 
             if (_verboseLogging)
                 Console.WriteLine(
@@ -2302,73 +2196,6 @@ public class DdxParser(bool verbose = false)
         var finalTrimmed = new byte[outputOffset];
         Array.Copy(output, 0, finalTrimmed, 0, outputOffset);
         return finalTrimmed;
-    }
-
-    // Attempt to reverse-engineer the engine's 3XDR tiling pattern, just gives different wrong output.
-    private static byte[] ApplyEngineTilingFor3xdr(byte[] src, int atlasWidthPixels, int atlasHeightPixels, uint format,
-        D3DTextureInfo texture)
-    {
-        var blockSize = format is 0x52 or 0x82 or 0x12 ? 8 : 16;
-        var atlasWidthBlocks = atlasWidthPixels / 4;
-        var atlasHeightBlocks = atlasHeightPixels / 4;
-        var rowStrideBytes = atlasWidthBlocks * blockSize;
-
-        var dst = new byte[rowStrideBytes * atlasHeightBlocks];
-
-        var srcOffset = 0;
-
-        // Map DataFormat -> a row in the tiling tables (heuristic)
-        var dataFormatIndex = (int)(texture.DataFormat & 0x3F);
-        var tmbRow = MapDataFormatToTmbRow(dataFormatIndex); // 0..3
-
-        // Iterate columns (3 columns per row) and copy the rects sequentially
-        for (var col = 0; col < 3; col++)
-        {
-            int firstRectIndex = _pFirstTilingRectsA[tmbRow, col];
-            int rectCount = _pTilingRectCountsA[tmbRow, col];
-
-            for (var r = 0; r < rectCount; r++)
-            {
-                var rectIdx = firstRectIndex + r;
-                if (rectIdx < 0 || rectIdx >= _pTextureTileRectsA.Length) continue;
-
-                var rect = _pTextureTileRectsA[rectIdx];
-
-                var cBytesWide = rect.cBytesWide;
-                var cLinesHigh = rect.cLinesHigh;
-                var cByteOffsetX = rect.cByteOffsetX;
-                var cLineOffsetY = rect.cLineOffsetY;
-
-                var dstRowBase = cLineOffsetY * rowStrideBytes;
-
-                for (var line = 0; line < cLinesHigh; line++)
-                {
-                    var dstPos = dstRowBase + line * rowStrideBytes + cByteOffsetX;
-                    if (dstPos + cBytesWide <= dst.Length && srcOffset + cBytesWide <= src.Length)
-                        Buffer.BlockCopy(src, srcOffset, dst, dstPos, cBytesWide);
-
-                    srcOffset += cBytesWide;
-                }
-            }
-        }
-
-        return dst;
-    }
-
-    private static int MapDataFormatToTmbRow(int dataFormatIndex)
-    {
-        // Heuristic mapping: group formats into 4 rows
-        // Row 0: DXT1-like
-        // Row 1: DXT5/DXT3-like
-        // Row 2: BC4/BC5-like
-        // Row 3: fallback
-        return dataFormatIndex switch
-        {
-            0x52 or 0x82 or 0x86 or 0x12 => 0,
-            0x53 or 0x54 or 0x13 or 0x14 or 0x88 or 0x71 => 1,
-            0x7B => 2,
-            _ => 3
-        };
     }
 
     /// <summary>
@@ -2448,12 +2275,4 @@ public class DdxParser(bool verbose = false)
         public int MipCount { get; set; }
     }
 
-    // Engine tiling tables extracted from the native CreateFromDDX implementation
-    private struct TextureTileRectDef
-    {
-        public int cByteOffsetX;
-        public int cLineOffsetY;
-        public int cBytesWide;
-        public int cLinesHigh;
-    }
 }

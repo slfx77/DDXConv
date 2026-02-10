@@ -6,18 +6,13 @@ namespace DDXConv.Tests;
 public class DdxParserTilingTests
 {
     private static readonly MethodInfo _getPcBlockIndex =
-        typeof(DdxParser).GetMethod("GetPcBlockIndex", BindingFlags.NonPublic | BindingFlags.Static)
-        ?? throw new InvalidOperationException("GetPcBlockIndex not found.");
-
-    private static readonly MethodInfo _getXboxTiledBlockIndex =
-        typeof(DdxParser).GetMethod("GetXboxTiledBlockIndex", BindingFlags.NonPublic | BindingFlags.Static)
-        ?? throw new InvalidOperationException("GetXboxTiledBlockIndex not found.");
+        typeof(TextureUtilities).GetMethod("GetPcBlockIndex", BindingFlags.NonPublic | BindingFlags.Static)
+        ?? throw new InvalidOperationException("GetPcBlockIndex not found in TextureUtilities.");
 
     [Fact]
     public void PcBlockIndex_MatchesAlgebraicFormula()
     {
         const int blocksX = 16;
-        const int blocksY = 4;
         const int groupX = 1;
         const int groupY = 1;
 
@@ -34,41 +29,35 @@ public class DdxParserTilingTests
                 var pcY = groupY * 2 + pcLocalY;
                 var expected = pcY * blocksX + pcX;
 
-                var actual = InvokeGetPcBlockIndex(xboxX, xboxY, blocksX, blocksY);
+                var actual = InvokeGetPcBlockIndex(xboxX, xboxY, blocksX);
                 Assert.Equal(expected, actual);
             }
         }
     }
 
     [Fact]
-    public void XboxTiledBlockIndex_IsInverseOfPcBlockIndex()
+    public void PcBlockIndex_IsBijective()
     {
         const int blocksX = 16;
         const int blocksY = 4;
 
+        // Verify that no two Xbox positions map to the same PC position (bijective mapping)
+        var seen = new HashSet<int>();
         for (var xboxY = 0; xboxY < blocksY; xboxY++)
         {
             for (var xboxX = 0; xboxX < blocksX; xboxX++)
             {
-                var pcIndex = InvokeGetPcBlockIndex(xboxX, xboxY, blocksX, blocksY);
-                var pcX = pcIndex % blocksX;
-                var pcY = pcIndex / blocksX;
-
-                var xboxIndex = InvokeGetXboxTiledBlockIndex(pcX, pcY, blocksX, blocksY);
-                var expectedIndex = xboxY * blocksX + xboxX;
-
-                Assert.Equal(expectedIndex, xboxIndex);
+                var pcIndex = InvokeGetPcBlockIndex(xboxX, xboxY, blocksX);
+                Assert.True(seen.Add(pcIndex),
+                    $"Duplicate PC index {pcIndex} from Xbox ({xboxX},{xboxY})");
             }
         }
+
+        Assert.Equal(blocksX * blocksY, seen.Count);
     }
 
-    private static int InvokeGetPcBlockIndex(int xboxX, int xboxY, int blocksX, int blocksY)
+    private static int InvokeGetPcBlockIndex(int xboxX, int xboxY, int blocksX)
     {
-        return (int)_getPcBlockIndex.Invoke(null, [xboxX, xboxY, blocksX, blocksY])!;
-    }
-
-    private static int InvokeGetXboxTiledBlockIndex(int pcX, int pcY, int blocksX, int blocksY)
-    {
-        return (int)_getXboxTiledBlockIndex.Invoke(null, [pcX, pcY, blocksX, blocksY])!;
+        return (int)_getPcBlockIndex.Invoke(null, [xboxX, xboxY, blocksX])!;
     }
 }

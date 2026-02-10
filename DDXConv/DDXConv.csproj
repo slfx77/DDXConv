@@ -5,25 +5,17 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Platforms>AnyCPU;x86</Platforms>
   </PropertyGroup>
-
-  <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
-    <PlatformTarget>x86</PlatformTarget>
-  </PropertyGroup>
-
-  <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
-    <PlatformTarget>x86</PlatformTarget>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\XCompression\XCompression.csproj" />
-  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="BCnEncoder.Net.ImageSharp" Version="1.1.2" />
     <!-- Override transitive dependency to fix CVE-2025-54575 vulnerability -->
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+  </ItemGroup>
+
+  <!-- Temporary: keep XCompression reference for A/B comparison testing -->
+  <ItemGroup>
+    <ProjectReference Include="..\XCompression\XCompression.csproj" />
   </ItemGroup>
 
 </Project>

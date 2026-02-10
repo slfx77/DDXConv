@@ -35,7 +35,7 @@ public static class DdsPostProcessor
             {
                 for (var x = 0; x < normalImage.Width; x++)
                 {
-                    specImage[x, y] = new Rgba32(255, 255, 255, 255);
+                    specImage[x, y] = new Rgba32(128, 128, 128, 128);
                 }
             }
         }
@@ -89,7 +89,7 @@ public static class DdsPostProcessor
         };
 
         bc5Fs.Close();
-        using var outFs = File.OpenWrite(bc5Path);
+        using var outFs = File.Create(bc5Path);
         encoder.EncodeToStream(combined, outFs);
         outFs.Seek(0x44, SeekOrigin.Begin);
         outFs.Write("KRAN"u8);

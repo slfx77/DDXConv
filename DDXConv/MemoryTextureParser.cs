@@ -1,4 +1,4 @@
-using XCompression;
+using DDXConv.Compression;
 
 namespace DDXConv;
 
@@ -120,11 +120,7 @@ public class MemoryTextureParser
             return ConvertDdxFromMemory(data, saveAtlas);
 
         if (magic == 0x52445833) // "3XDR"
-            return new ConversionResult
-            {
-                Success = false,
-                Error = "3XDR format not yet supported for memory textures"
-            };
+            return Convert3xdrFromMemory(data);
 
         // Not a DDX file - could be raw GPU texture data
         return new ConversionResult { Success = false, Error = $"Unknown texture format (magic: 0x{magic:X8})" };
@@ -191,6 +187,78 @@ public class MemoryTextureParser
         catch (Exception ex)
         {
             return new ConversionResult { Success = false, Error = $"Parse error: {ex.Message}" };
+        }
+    }
+
+    /// <summary>
+    ///     Convert 3XDR texture data from memory dump.
+    ///     3XDR uses macro-block tiling (not Morton) and contains only mip0.
+    /// </summary>
+    private ConversionResult Convert3xdrFromMemory(byte[] data)
+    {
+        try
+        {
+            using var ms = new MemoryStream(data);
+            using var reader = new BinaryReader(ms);
+
+            reader.ReadUInt32(); // magic
+            reader.ReadByte(); // priorityL
+            reader.ReadByte(); // priorityC
+            reader.ReadByte(); // priorityH
+
+            var version = reader.ReadUInt16();
+            if (version < 3)
+            {
+                return new ConversionResult
+                {
+                    Success = false,
+                    Error = $"DDX version {version} not supported (need >= 3)"
+                };
+            }
+
+            reader.BaseStream.Seek(-1, SeekOrigin.Current);
+            var textureHeader = reader.ReadBytes(52);
+            reader.ReadBytes(8);
+
+            var texture = ParseD3DTextureHeader(textureHeader, out var width, out var height);
+
+            if (_verbose)
+            {
+                Console.WriteLine($"3XDR memory texture: {width}x{height}, Format=0x{texture.ActualFormat:X2}");
+            }
+
+            var remainingBytes = (int)(reader.BaseStream.Length - reader.BaseStream.Position);
+            var compressedData = reader.ReadBytes(remainingBytes);
+
+            byte[] decompressed;
+            try
+            {
+                decompressed = DecompressTextureData(compressedData, width, height, texture.ActualFormat);
+            }
+            catch (Exception ex)
+            {
+                return new ConversionResult { Success = false, Error = $"Decompression failed: {ex.Message}" };
+            }
+
+            // 3XDR: macro-block untile then endian swap (mip0 only)
+            var blockSize = TextureUtilities.GetBlockSize(texture.ActualFormat);
+            var untiled = TextureUtilities.UntileMacroBlocks(decompressed, width, height, blockSize);
+            var textureData = TextureUtilities.SwapEndian16(untiled);
+
+            var dds = BuildDds(textureData, width, height, 1, texture);
+            return new ConversionResult
+            {
+                Success = true,
+                DdsData = dds,
+                Width = width,
+                Height = height,
+                MipLevels = 1,
+                Notes = "3XDR format (macro-block tiling, mip0 only)"
+            };
+        }
+        catch (Exception ex)
+        {
+            return new ConversionResult { Success = false, Error = $"3XDR parse error: {ex.Message}" };
         }
     }
 
@@ -471,20 +539,51 @@ public class MemoryTextureParser
 
     #region XMemCompress
 
+    private static bool UseXCompression =>
+        Environment.GetEnvironmentVariable("DDXCONV_USE_XCOMPRESSION") == "1";
+
     private static byte[] DecompressXMemCompress(byte[] compressed, uint expectedSize, out int bytesConsumed)
     {
-        var buffer = new byte[expectedSize * 2];
+        if (UseXCompression)
+            return DecompressViaXCompression(compressed, expectedSize, out bytesConsumed);
 
-        using var context = new DecompressionContext();
+        return DecompressViaLzx(compressed, expectedSize, out bytesConsumed);
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static byte[] DecompressViaXCompression(byte[] compressed, uint expectedSize, out int bytesConsumed)
+    {
+        var buffer = new byte[expectedSize * 2];
+        using var context = new XCompression.DecompressionContext();
         var compressedLen = compressed.Length;
         var decompressedLen = buffer.Length;
 
-        var result = context.Decompress(
+        var errorCode = context.Decompress(
             compressed, 0, ref compressedLen,
             buffer, 0, ref decompressedLen);
 
-        if (result != ErrorCode.None)
-            throw new InvalidOperationException($"XMemCompress decompression failed: {result}");
+        if (errorCode != XCompression.ErrorCode.None)
+            throw new InvalidOperationException($"XCompression decompression failed: {errorCode}");
+
+        bytesConsumed = compressedLen;
+        var output = new byte[decompressedLen];
+        Array.Copy(buffer, output, decompressedLen);
+        return output;
+    }
+
+    private static byte[] DecompressViaLzx(byte[] compressed, uint expectedSize, out int bytesConsumed)
+    {
+        var buffer = new byte[expectedSize * 2];
+        using var decompressor = new LzxDecompressor();
+        var compressedLen = compressed.Length;
+        var decompressedLen = buffer.Length;
+
+        var result = decompressor.Decompress(
+            compressed, 0, ref compressedLen,
+            buffer, 0, ref decompressedLen);
+
+        if (result != 0)
+            throw new InvalidOperationException($"LzxDecompressor decompression failed: {result}");
 
         bytesConsumed = compressedLen;
         var output = new byte[decompressedLen];
@@ -505,6 +604,7 @@ public class MemoryTextureParser
         public int Width { get; init; }
         public int Height { get; init; }
         public int MipLevels { get; init; }
+        public int SkippedLevels { get; init; }
         public string? Notes { get; init; }
         public string? Error { get; init; }
         public string? AtlasPath { get; init; }
@@ -519,6 +619,56 @@ public class MemoryTextureParser
         public int Height { get; init; }
         public byte DataFormat { get; init; }
         public byte ActualFormat { get; init; }
+    }
+
+    /// <summary>
+    ///     Parsed NiXenonSourceTextureData from a memory dump.
+    ///     Based on PDB analysis: the structure is 136 bytes with known field offsets.
+    /// </summary>
+    /// <remarks>
+    ///     PDB layout (NiXenonSourceTextureData, 136 bytes):
+    ///       offset 112: m_bTextureDeleted (bool)
+    ///       offset 124: m_uiLevelsSkipped (uint32) — per-texture mip levels skipped
+    ///       offset 128: m_uiOriginalSkipLevels (uint32)
+    ///     Static members (from .data segment):
+    ///       ms_uiSkipLevels — global mip skip level applied to all textures
+    /// </remarks>
+    public class NiXenonTextureMetadata
+    {
+        public uint LevelsSkipped { get; init; }
+        public uint OriginalSkipLevels { get; init; }
+        public bool TextureDeleted { get; init; }
+        public int StructOffset { get; init; }
+    }
+
+    /// <summary>
+    ///     Try to parse NiXenonSourceTextureData metadata at a given offset in a memory dump.
+    ///     Returns null if the data at the offset doesn't look like a valid structure.
+    /// </summary>
+    public static NiXenonTextureMetadata? TryParseTextureMetadata(byte[] dump, int offset)
+    {
+        if (offset + 136 > dump.Length)
+        {
+            return null;
+        }
+
+        var deleted = dump[offset + 112] != 0;
+        var levelsSkipped = BitConverter.ToUInt32(dump, offset + 124);
+        var originalSkip = BitConverter.ToUInt32(dump, offset + 128);
+
+        // Sanity check: skip levels should be small (0-10 is reasonable)
+        if (levelsSkipped > 15 || originalSkip > 15)
+        {
+            return null;
+        }
+
+        return new NiXenonTextureMetadata
+        {
+            LevelsSkipped = levelsSkipped,
+            OriginalSkipLevels = originalSkip,
+            TextureDeleted = deleted,
+            StructOffset = offset
+        };
     }
 
     #region Texture Utilities
@@ -577,36 +727,12 @@ public class MemoryTextureParser
     }
 
     /// <summary>
-    ///     Untile/unswizzle Xbox 360 texture data.
+    ///     Untile/unswizzle Xbox 360 texture data using the shared Morton tiling algorithm.
+    ///     Performs endian swap during untiling (same as DdxParser).
     /// </summary>
     private static byte[] UntileTexture(byte[] src, int width, int height, uint format)
     {
-        var blockSize = TextureUtilities.GetBlockSize(format);
-        var blocksWide = width / 4;
-        var blocksHigh = height / 4;
-        var dst = new byte[src.Length];
-
-        // Calculate log2 of bytes per pixel for tiling
-        var log2Bpp = (uint)(blockSize / 4 + ((blockSize / 2) >> (blockSize / 4)));
-
-        for (var y = 0; y < blocksHigh; y++)
-        {
-            var inputRowOffset = TiledOffset2DRow((uint)y, (uint)blocksWide, log2Bpp);
-
-            for (var x = 0; x < blocksWide; x++)
-            {
-                var inputOffset = TiledOffset2DColumn((uint)x, (uint)y, log2Bpp, inputRowOffset);
-                inputOffset >>= (int)log2Bpp;
-
-                var dstOffset = (y * blocksWide + x) * blockSize;
-                var srcOffset = (int)inputOffset * blockSize;
-
-                if (srcOffset + blockSize <= src.Length && dstOffset + blockSize <= dst.Length)
-                    Array.Copy(src, srcOffset, dst, dstOffset, blockSize);
-            }
-        }
-
-        return dst;
+        return TextureUtilities.UnswizzleMortonDXT(src, width, height, format, swapEndian: true);
     }
 
     /// <summary>
@@ -645,26 +771,7 @@ public class MemoryTextureParser
 
     #endregion
 
-    #region Tiling Math (from Xenia)
-
-    // Xbox 360 tiling functions from Xenia emulator
-    // https://github.com/xenia-project/xenia/blob/master/src/xenia/gpu/texture_conversion.cc
-    private static uint TiledOffset2DRow(uint y, uint width, uint log2Bpp)
-    {
-        var macro = ((y >> 5) * ((width >> 5) << (int)log2Bpp)) << 11;
-        var micro = ((y & 6) >> 1) << (int)log2Bpp << 7;
-        return macro + ((micro + ((y & 8) << (7 + (int)log2Bpp))) ^ ((y & 1) << 4));
-    }
-
-    private static uint TiledOffset2DColumn(uint x, uint y, uint log2Bpp, uint rowOffset)
-    {
-        var macro = (x >> 5) << (int)log2Bpp << 11;
-        var micro = ((x & 7) + ((x & 8) << 1)) << (int)log2Bpp;
-        var offset = macro + (micro ^ (((y & 8) << 3) + ((y & 1) << 4)));
-        return ((rowOffset + offset) << (int)log2Bpp) >> (int)log2Bpp;
-    }
-
-    #endregion
+    // Tiling math now in TextureUtilities (shared with DdxParser)
 
     #region DDS Building
 
