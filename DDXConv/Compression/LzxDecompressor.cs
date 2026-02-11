@@ -203,7 +203,16 @@ public sealed class LzxDecompressor : IDisposable
             if (totalOutput + chunkUncompressedSize > output.Length)
             {
                 chunkUncompressedSize = output.Length - totalOutput;
-                if (chunkUncompressedSize <= 0) break;
+                if (chunkUncompressedSize <= 0)
+                {
+                    // Output buffer full — skip decompression but still consume input.
+                    // XnaNative.dll uses an overflow buffer here; we just advance past
+                    // remaining chunks so inputCount reflects the full stream consumption.
+                    totalInput += totalChunkSize;
+                    inputPos += totalChunkSize;
+                    if (firstByte == 0xFF) break; // 0xFF terminates stream
+                    continue;
+                }
             }
 
             // C: DecompressChunk_Setup sets inputEnd = dataStart + 4 + compressedLen
@@ -266,6 +275,7 @@ public sealed class LzxDecompressor : IDisposable
     private int DecompressBlocks(int bytesRemaining, Span<byte> output)
     {
         int totalDecompressed = 0;
+        int initialWindowPos = _windowPosition;
 
         while (true)
         {
@@ -373,13 +383,13 @@ public sealed class LzxDecompressor : IDisposable
         InitBitstream();
 
         // C line 1667-1670: copy from window to output and apply E8
-        int windowPos = _windowPosition;
-        if (windowPos == 0) windowPos = _windowSize;
-        int startPos = windowPos - totalDecompressed;
-
+        // Use initialWindowPos (saved before decompression) as the copy start.
+        // The decoder can overshoot endPos when the last match straddles the boundary,
+        // causing _windowPosition to advance past the target. Using the initial position
+        // ensures we copy from where the data actually starts in the window.
         for (int i = 0; i < totalDecompressed; i++)
         {
-            output[i] = _window[(startPos + i) & _windowMask];
+            output[i] = _window[(initialWindowPos + i) & _windowMask];
         }
 
         // C: CopyOutputAndE8Translate — apply E8 if needed
@@ -1255,22 +1265,27 @@ public sealed class LzxDecompressor : IDisposable
                     if (extraBitsCount >= 3)
                     {
                         // Read (extra - 3) bits from bitstream, then 3 from aligned tree
+                        // C: when extraBits == 3, verbatimBits = 0 (no bitstream read)
                         int topBits = extraBitsCount - 3;
-                        uint verbatimBits = bitBuffer >> ((32 - topBits) & 0x1f);
-                        bitBuffer <<= (topBits & 0x1f);
-                        bitsRemain -= topBits;
-                        if (bitsRemain < 1)
+                        uint verbatimBits = 0;
+                        if (topBits > 0)
                         {
-                            uint w = (uint)(_inputBytes[inputPos] | (_inputBytes[inputPos + 1] << 8));
-                            bitBuffer |= w << ((-bitsRemain) & 0x1f);
-                            bitsRemain += 16;
-                            inputPos += 2;
+                            verbatimBits = bitBuffer >> ((32 - topBits) & 0x1f);
+                            bitBuffer <<= (topBits & 0x1f);
+                            bitsRemain -= topBits;
                             if (bitsRemain < 1)
                             {
-                                w = (uint)(_inputBytes[inputPos] | (_inputBytes[inputPos + 1] << 8));
+                                uint w = (uint)(_inputBytes[inputPos] | (_inputBytes[inputPos + 1] << 8));
                                 bitBuffer |= w << ((-bitsRemain) & 0x1f);
                                 bitsRemain += 16;
                                 inputPos += 2;
+                                if (bitsRemain < 1)
+                                {
+                                    w = (uint)(_inputBytes[inputPos] | (_inputBytes[inputPos + 1] << 8));
+                                    bitBuffer |= w << ((-bitsRemain) & 0x1f);
+                                    bitsRemain += 16;
+                                    inputPos += 2;
+                                }
                             }
                         }
 

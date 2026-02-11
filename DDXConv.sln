@@ -1,8 +1,6 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DDXConv", "DDXConv\DDXConv.csproj", "{40D17C67-BDBB-41AD-8723-4C7FA1979AF6}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XCompression", "XCompression\XCompression.csproj", "{5978A15D-EBE6-4BAA-93D3-A54BDF5AA0EA}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DDXConv.Tests", "DDXConv.Tests\DDXConv.Tests.csproj", "{B0A6AA19-6B2B-4F2A-9C4C-0D1F2B49B8C3}"
 EndProject
@@ -16,10 +14,6 @@ Global
 		{40D17C67-BDBB-41AD-8723-4C7FA1979AF6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{40D17C67-BDBB-41AD-8723-4C7FA1979AF6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{40D17C67-BDBB-41AD-8723-4C7FA1979AF6}.Release|Any CPU.Build.0 = Release|Any CPU
-		{5978A15D-EBE6-4BAA-93D3-A54BDF5AA0EA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{5978A15D-EBE6-4BAA-93D3-A54BDF5AA0EA}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{5978A15D-EBE6-4BAA-93D3-A54BDF5AA0EA}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{5978A15D-EBE6-4BAA-93D3-A54BDF5AA0EA}.Release|Any CPU.Build.0 = Release|Any CPU
 		{B0A6AA19-6B2B-4F2A-9C4C-0D1F2B49B8C3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{B0A6AA19-6B2B-4F2A-9C4C-0D1F2B49B8C3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B0A6AA19-6B2B-4F2A-9C4C-0D1F2B49B8C3}.Release|Any CPU.ActiveCfg = Release|Any CPU

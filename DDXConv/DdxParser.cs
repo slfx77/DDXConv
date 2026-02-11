@@ -1144,41 +1144,7 @@ public class DdxParser(bool verbose = false)
         if (outputPath != null) WriteDdsFile(outputPath, texture, linearData);
     }
 
-    private static bool UseXCompression =>
-        Environment.GetEnvironmentVariable("DDXCONV_USE_XCOMPRESSION") == "1";
-
     private byte[] DecompressXMemCompress(byte[] compressedData, uint uncompressedSize, out int bytesConsumed)
-    {
-        if (UseXCompression)
-            return DecompressViaXCompression(compressedData, uncompressedSize, _verboseLogging, out bytesConsumed);
-
-        return DecompressViaLzx(compressedData, uncompressedSize, _verboseLogging, out bytesConsumed);
-    }
-
-    // Separate methods so the JIT only loads XCompression assembly when this path is actually taken
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    private static byte[] DecompressViaXCompression(byte[] compressedData, uint uncompressedSize, bool verbose, out int bytesConsumed)
-    {
-        var decompressedData = new byte[uncompressedSize * 2];
-        using var context = new XCompression.DecompressionContext();
-        var compressedLen = compressedData.Length;
-        var decompressedLen = decompressedData.Length;
-
-        var result = context.Decompress(
-            compressedData, 0, ref compressedLen,
-            decompressedData, 0, ref decompressedLen);
-
-        if (result != XCompression.ErrorCode.None)
-            throw new InvalidOperationException($"XCompression decompression failed: {result}");
-
-        if (verbose) Console.WriteLine($"[XCompression] Decompressed {compressedLen} -> {decompressedLen} bytes");
-
-        bytesConsumed = compressedLen;
-        if (decompressedLen < decompressedData.Length) Array.Resize(ref decompressedData, decompressedLen);
-        return decompressedData;
-    }
-
-    private static byte[] DecompressViaLzx(byte[] compressedData, uint uncompressedSize, bool verbose, out int bytesConsumed)
     {
         var decompressedData = new byte[uncompressedSize * 2];
         using var decompressor = new LzxDecompressor();
@@ -1192,7 +1158,7 @@ public class DdxParser(bool verbose = false)
         if (result != 0)
             throw new InvalidOperationException($"LzxDecompressor decompression failed: {result}");
 
-        if (verbose) Console.WriteLine($"[LzxDecompressor] Decompressed {compressedLen} -> {decompressedLen} bytes");
+        if (_verboseLogging) Console.WriteLine($"Decompressed {compressedLen} -> {decompressedLen} bytes");
 
         bytesConsumed = compressedLen;
         if (decompressedLen < decompressedData.Length) Array.Resize(ref decompressedData, decompressedLen);

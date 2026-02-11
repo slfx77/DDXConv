@@ -11,14 +11,9 @@ namespace DDXConv;
 ///     - Tiling patterns optimized for GPU access, not file storage
 ///     This parser handles these cases separately from the standard DDX file parser.
 /// </summary>
-public class MemoryTextureParser
+public class MemoryTextureParser(bool verbose = false)
 {
-    private readonly bool _verbose;
-
-    public MemoryTextureParser(bool verbose = false)
-    {
-        _verbose = verbose;
-    }
+    private readonly bool _verbose = verbose;
 
     /// <summary>
     ///     Convert a DDX file from a memory dump to DDS format.
@@ -539,39 +534,7 @@ public class MemoryTextureParser
 
     #region XMemCompress
 
-    private static bool UseXCompression =>
-        Environment.GetEnvironmentVariable("DDXCONV_USE_XCOMPRESSION") == "1";
-
     private static byte[] DecompressXMemCompress(byte[] compressed, uint expectedSize, out int bytesConsumed)
-    {
-        if (UseXCompression)
-            return DecompressViaXCompression(compressed, expectedSize, out bytesConsumed);
-
-        return DecompressViaLzx(compressed, expectedSize, out bytesConsumed);
-    }
-
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    private static byte[] DecompressViaXCompression(byte[] compressed, uint expectedSize, out int bytesConsumed)
-    {
-        var buffer = new byte[expectedSize * 2];
-        using var context = new XCompression.DecompressionContext();
-        var compressedLen = compressed.Length;
-        var decompressedLen = buffer.Length;
-
-        var errorCode = context.Decompress(
-            compressed, 0, ref compressedLen,
-            buffer, 0, ref decompressedLen);
-
-        if (errorCode != XCompression.ErrorCode.None)
-            throw new InvalidOperationException($"XCompression decompression failed: {errorCode}");
-
-        bytesConsumed = compressedLen;
-        var output = new byte[decompressedLen];
-        Array.Copy(buffer, output, decompressedLen);
-        return output;
-    }
-
-    private static byte[] DecompressViaLzx(byte[] compressed, uint expectedSize, out int bytesConsumed)
     {
         var buffer = new byte[expectedSize * 2];
         using var decompressor = new LzxDecompressor();
