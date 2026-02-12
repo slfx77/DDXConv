@@ -6,6 +6,30 @@ namespace DDXConv;
 /// </summary>
 public static class TextureUtilities
 {
+    #region Endian Swap
+
+    /// <summary>
+    ///     Swap every 16-bit word in the data (Xbox 360 big-endian to PC little-endian).
+    /// </summary>
+    public static byte[] SwapEndian16(byte[] src)
+    {
+        var dst = new byte[src.Length];
+        for (var i = 0; i < src.Length - 1; i += 2)
+        {
+            dst[i] = src[i + 1];
+            dst[i + 1] = src[i];
+        }
+
+        if ((src.Length & 1) == 1)
+        {
+            dst[src.Length - 1] = src[src.Length - 1];
+        }
+
+        return dst;
+    }
+
+    #endregion
+
     #region Format Detection
 
     /// <summary>
@@ -319,30 +343,6 @@ public static class TextureUtilities
         var pcY = groupY * 2 + pcLocalY;
 
         return pcY * blocksX + pcX;
-    }
-
-    #endregion
-
-    #region Endian Swap
-
-    /// <summary>
-    ///     Swap every 16-bit word in the data (Xbox 360 big-endian to PC little-endian).
-    /// </summary>
-    public static byte[] SwapEndian16(byte[] src)
-    {
-        var dst = new byte[src.Length];
-        for (var i = 0; i < src.Length - 1; i += 2)
-        {
-            dst[i] = src[i + 1];
-            dst[i + 1] = src[i];
-        }
-
-        if ((src.Length & 1) == 1)
-        {
-            dst[src.Length - 1] = src[src.Length - 1];
-        }
-
-        return dst;
     }
 
     #endregion

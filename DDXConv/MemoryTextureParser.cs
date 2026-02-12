@@ -557,6 +557,36 @@ public class MemoryTextureParser(bool verbose = false)
     #endregion
 
     /// <summary>
+    ///     Try to parse NiXenonSourceTextureData metadata at a given offset in a memory dump.
+    ///     Returns null if the data at the offset doesn't look like a valid structure.
+    /// </summary>
+    public static NiXenonTextureMetadata? TryParseTextureMetadata(byte[] dump, int offset)
+    {
+        if (offset + 136 > dump.Length)
+        {
+            return null;
+        }
+
+        var deleted = dump[offset + 112] != 0;
+        var levelsSkipped = BitConverter.ToUInt32(dump, offset + 124);
+        var originalSkip = BitConverter.ToUInt32(dump, offset + 128);
+
+        // Sanity check: skip levels should be small (0-10 is reasonable)
+        if (levelsSkipped > 15 || originalSkip > 15)
+        {
+            return null;
+        }
+
+        return new NiXenonTextureMetadata
+        {
+            LevelsSkipped = levelsSkipped,
+            OriginalSkipLevels = originalSkip,
+            TextureDeleted = deleted,
+            StructOffset = offset
+        };
+    }
+
+    /// <summary>
     ///     Result of memory texture conversion.
     /// </summary>
     public class ConversionResult
@@ -590,11 +620,11 @@ public class MemoryTextureParser(bool verbose = false)
     /// </summary>
     /// <remarks>
     ///     PDB layout (NiXenonSourceTextureData, 136 bytes):
-    ///       offset 112: m_bTextureDeleted (bool)
-    ///       offset 124: m_uiLevelsSkipped (uint32) — per-texture mip levels skipped
-    ///       offset 128: m_uiOriginalSkipLevels (uint32)
+    ///     offset 112: m_bTextureDeleted (bool)
+    ///     offset 124: m_uiLevelsSkipped (uint32) — per-texture mip levels skipped
+    ///     offset 128: m_uiOriginalSkipLevels (uint32)
     ///     Static members (from .data segment):
-    ///       ms_uiSkipLevels — global mip skip level applied to all textures
+    ///     ms_uiSkipLevels — global mip skip level applied to all textures
     /// </remarks>
     public class NiXenonTextureMetadata
     {
@@ -602,36 +632,6 @@ public class MemoryTextureParser(bool verbose = false)
         public uint OriginalSkipLevels { get; init; }
         public bool TextureDeleted { get; init; }
         public int StructOffset { get; init; }
-    }
-
-    /// <summary>
-    ///     Try to parse NiXenonSourceTextureData metadata at a given offset in a memory dump.
-    ///     Returns null if the data at the offset doesn't look like a valid structure.
-    /// </summary>
-    public static NiXenonTextureMetadata? TryParseTextureMetadata(byte[] dump, int offset)
-    {
-        if (offset + 136 > dump.Length)
-        {
-            return null;
-        }
-
-        var deleted = dump[offset + 112] != 0;
-        var levelsSkipped = BitConverter.ToUInt32(dump, offset + 124);
-        var originalSkip = BitConverter.ToUInt32(dump, offset + 128);
-
-        // Sanity check: skip levels should be small (0-10 is reasonable)
-        if (levelsSkipped > 15 || originalSkip > 15)
-        {
-            return null;
-        }
-
-        return new NiXenonTextureMetadata
-        {
-            LevelsSkipped = levelsSkipped,
-            OriginalSkipLevels = originalSkip,
-            TextureDeleted = deleted,
-            StructOffset = offset
-        };
     }
 
     #region Texture Utilities
@@ -695,7 +695,7 @@ public class MemoryTextureParser(bool verbose = false)
     /// </summary>
     private static byte[] UntileTexture(byte[] src, int width, int height, uint format)
     {
-        return TextureUtilities.UnswizzleMortonDXT(src, width, height, format, swapEndian: true);
+        return TextureUtilities.UnswizzleMortonDXT(src, width, height, format);
     }
 
     /// <summary>

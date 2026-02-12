@@ -7,12 +7,16 @@
 // is noted in comments for traceability.
 
 using System.Buffers;
+using System.Runtime.CompilerServices;
 
 namespace DDXConv.Compression;
 
 public sealed class LzxDecompressor : IDisposable
 {
-    // LZX constants
+    // ================================================================
+    // LZX CONSTANTS
+    // ================================================================
+
     private const int NumChars = 256;
     private const int MainTreeTableBits = 10;
     private const int LengthTreeTableBits = 8;
@@ -25,88 +29,113 @@ public sealed class LzxDecompressor : IDisposable
     private const int BlockTypeAligned = 2;
     private const int BlockTypeUncompressed = 3;
 
-    // Context fields (mapped from C context struct offsets in lzx_context.h)
-    private readonly int _windowSize;    // OFF_WINDOW_SIZE  0x004
-    private readonly int _windowMask;    // OFF_WINDOW_MASK  0x008
-    private readonly byte[] _window;     // OFF_WINDOW_BASE  0x000
-    private readonly int _numPositionSlots; // OFF_NUM_POS_SLOTS 0x2EB5
+    // Chunk framing constants
+    private const byte StreamTerminator = 0xFF;
+    private const int DefaultUncompressedChunkSize = 0x8000; // 32 KB
+    private const int MaxTotalChunkSize = 0x980a; // ~38 KB safety limit
+    private const int WindowOverflowPadding = 0x106; // 262 extra bytes for match overshoot
+    private const int WindowMirrorThreshold = 0x101; // Window positions below this are mirrored
+    private const int MaxChunkCountForE8 = 0x7fff; // E8 translation cutoff
 
-    private int _r0, _r1, _r2;          // OFF_R0/R1/R2     0x00C-0x014
+    // Decompression state constants
+    private const int StateNeedHeader = 1;
+    private const int StateDecompressing = 2;
 
-    // Huffman decode tables
-    private readonly short[] _mainTreeTable;     // OFF_MAIN_TREE_TABLE     0x018
-    private readonly short[] _lengthTreeTable;   // OFF_LENGTH_TREE_TABLE   0x818
-    private readonly byte[] _alignedTreeTable;   // OFF_ALIGNED_TREE_TABLE  0xDB4
-
-    // Code lengths
-    private readonly byte[] _mainTreeLengths;    // OFF_MAIN_TREE_LENGTHS   0xA18
-    private readonly byte[] _lengthTreeLengths;  // OFF_LENGTH_TREE_LENGTHS 0xCB8
-    private readonly byte[] _alignedTreeLengths; // OFF_ALIGNED_TREE_LENGTHS 0xE34
-
-    // Tree length backups (C copies current → backup before reading new trees)
-    private readonly byte[] _mainTreeLenBackup;    // OFF_MAIN_TREE_BACKUP  0x2B14
-    private readonly byte[] _lengthTreeLenBackup;  // OFF_LENGTH_TREE_BACKUP 0x2DB4
-
-    private readonly int _mainTreeElements;
-
-    // Bitstream state
-    private byte[] _inputBytes = Array.Empty<byte>();
-    private int _inputPosition;          // OFF_INPUT_POSITION  0x2B04
-    private int _inputEnd;               // OFF_INPUT_END       0x2B08
-    private uint _bitBuffer;             // OFF_BIT_BUFFER      0x2EB0
-    private int _bitsRemaining;          // OFF_BITS_REMAINING  0x2EB4 (int8_t in C)
-
-    // Decompression state machine
-    private int _windowPosition;         // OFF_WINDOW_POSITION  0x2EB8
-    private int _blockType;              // OFF_BLOCK_TYPE       0x2ED0
-    private int _blockRemaining;         // OFF_BLOCK_REMAINING  0x2ECC
-    private int _state;                  // OFF_STATE            0x2ED4  (1=need header, 2=decompressing)
-    private bool _headerRead;            // OFF_HEADER_READ      0x2EB6
-    private bool _errorFlag;             // OFF_ERROR_FLAG       0x2EB7
-
-    // Intel E8 translation
-    private int _intelFileSize;          // OFF_INTEL_FILE_SIZE     0x2EBC
-    private int _intelCurrentPosition;   // OFF_INTEL_CURRENT_POS   0x2EC0
-    private int _chunkCount;             // OFF_CHUNK_COUNT         0x2EC4
+    // ================================================================
+    // STATIC TABLES
+    // ================================================================
 
     // Position base and extra bits tables (standard LZX, pre-adjusted by -2)
-    private static readonly int[] PositionBase;  // OFF_POSITION_BASE 0x2F18
-    private static readonly byte[] ExtraBits;    // OFF_EXTRA_BITS    0x2EE4
+    private static readonly int[] PositionBase; // OFF_POSITION_BASE 0x2F18
+    private static readonly byte[] ExtraBits; // OFF_EXTRA_BITS    0x2EE4
+    private readonly byte[] _alignedTreeLengths; // OFF_ALIGNED_TREE_LENGTHS 0xE34
+    private readonly byte[] _alignedTreeTable; // OFF_ALIGNED_TREE_TABLE  0xDB4
+
+    // Bitstream (extracted to dedicated class)
+    private readonly BitstreamReader _bitstream = new();
+    private readonly byte[] _lengthTreeLenBackup; // OFF_LENGTH_TREE_BACKUP 0x2DB4
+    private readonly byte[] _lengthTreeLengths; // OFF_LENGTH_TREE_LENGTHS 0xCB8
+    private readonly short[] _lengthTreeTable; // OFF_LENGTH_TREE_TABLE   0x818
+    private readonly int _mainTreeElements;
+
+    // Tree length backups (C copies current → backup before reading new trees)
+    private readonly byte[] _mainTreeLenBackup; // OFF_MAIN_TREE_BACKUP  0x2B14
+
+    // Huffman code lengths
+    private readonly byte[] _mainTreeLengths; // OFF_MAIN_TREE_LENGTHS   0xA18
+
+    // Huffman decode tables
+    private readonly short[] _mainTreeTable; // OFF_MAIN_TREE_TABLE     0x018
+
+    // Position slots
+    private readonly int _numPositionSlots; // OFF_NUM_POS_SLOTS 0x2EB5
+
+    // ================================================================
+    // INSTANCE FIELDS
+    // ================================================================
+
+    // Sliding window
+    private readonly byte[] _window; // OFF_WINDOW_BASE  0x000
+    private readonly int _windowMask; // OFF_WINDOW_MASK  0x008
+    private readonly int _windowSize; // OFF_WINDOW_SIZE  0x004
+    private int _blockRemaining; // OFF_BLOCK_REMAINING  0x2ECC
+    private int _blockType; // OFF_BLOCK_TYPE       0x2ED0
+    private int _chunkCount; // OFF_CHUNK_COUNT         0x2EC4
+
+    // Decompression state machine
+    private int _decompressState; // OFF_STATE            0x2ED4  (1=need header, 2=decompressing)
+    private bool _headerRead; // OFF_HEADER_READ      0x2EB6
+    private int _intelCurrentPosition; // OFF_INTEL_CURRENT_POS   0x2EC0
+
+    // Intel E8 translation state
+    private int _intelFileSize; // OFF_INTEL_FILE_SIZE     0x2EBC
+
+    // Match distance history (LZX repeat offsets)
+    private int _repeatOffset0, _repeatOffset1, _repeatOffset2; // OFF_R0/R1/R2 0x00C-0x014
+    private int _windowPosition; // OFF_WINDOW_POSITION  0x2EB8
+
+    // ================================================================
+    // STATIC CONSTRUCTOR
+    // ================================================================
 
     // C: InitExtraBitsAndPositionBase (0x10198ae0)
     static LzxDecompressor()
     {
         // Position base table pre-adjusted by -2 (matches C posBase[] at line 1825)
-        PositionBase = new[]
-        {
+        PositionBase =
+        [
             -2, -1, 0, 1, 2, 4, 6, 10, 14, 22, 30, 46, 62, 94, 126, 190,
             254, 382, 510, 766, 1022, 1534, 2046, 3070, 4094, 6142, 8190,
             12286, 16382, 24574, 32766, 49150, 65534, 98302, 131070, 196606,
             262142, 393214, 524286, 655358, 786430, 917502, 1048574, 1179646,
             1310718, 1441790, 1572862, 1703934, 1835006, 1966078, 2097150
-        };
+        ];
 
         // Extra bits table (matches C hardcoded bytes at line 1810-1822)
-        ExtraBits = new byte[]
-        {
+        ExtraBits =
+        [
             0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6,
             7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14,
             15, 15, 16, 16, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17,
             17, 17, 17
-        };
+        ];
     }
+
+    // ================================================================
+    // CONSTRUCTOR / DISPOSE / RESET
+    // ================================================================
 
     // C: LZX_CreateContext (line 1898)
     public LzxDecompressor(int windowSize = 131072, int chunkSize = 524288)
     {
         _windowSize = windowSize;
         _windowMask = windowSize - 1;
-        _window = ArrayPool<byte>.Shared.Rent(windowSize + 0x106);
+        _window = ArrayPool<byte>.Shared.Rent(windowSize + WindowOverflowPadding);
         Array.Clear(_window, 0, _window.Length);
 
         // Compute numPositionSlots iteratively (matches C lines 1940-1947)
         _numPositionSlots = 4;
-        int posSlots = 4;
+        var posSlots = 4;
         while (posSlots < windowSize)
         {
             posSlots += 1 << ExtraBits[_numPositionSlots];
@@ -123,32 +152,38 @@ public sealed class LzxDecompressor : IDisposable
         _lengthTreeLenBackup = new byte[LengthTreeNumElements];
 
         // Decode tables: direct entries + overflow space
-        int mainTableSize = 1 << MainTreeTableBits;
+        var mainTableSize = 1 << MainTreeTableBits;
         _mainTreeTable = new short[mainTableSize + _mainTreeElements * 4];
-        int lengthTableSize = 1 << LengthTreeTableBits;
+        var lengthTableSize = 1 << LengthTreeTableBits;
         _lengthTreeTable = new short[lengthTableSize + LengthTreeNumElements * 4];
         _alignedTreeTable = new byte[1 << AlignedTreeTableBits];
 
         Reset();
     }
 
+    public void Dispose()
+    {
+        if (_window != null)
+        {
+            ArrayPool<byte>.Shared.Return(_window);
+        }
+    }
+
     // C: ResetLzxState + ResetState + ClearTreeLengths + ResetIntelPos (lines 1838-1887)
     private void Reset()
     {
-        _r0 = 1;
-        _r1 = 1;
-        _r2 = 1;
+        _repeatOffset0 = 1;
+        _repeatOffset1 = 1;
+        _repeatOffset2 = 1;
         _windowPosition = 0;
-        _state = 1; // need block header
+        _decompressState = StateNeedHeader;
         _blockRemaining = 0;
         _blockType = 0;
         _headerRead = true; // first block needs E8 header read
-        _errorFlag = false;
         _intelFileSize = 0;
         _intelCurrentPosition = 0;
         _chunkCount = 0;
-        _bitBuffer = 0;
-        _bitsRemaining = 0;
+        _bitstream.Reset();
         Array.Clear(_mainTreeLengths);
         Array.Clear(_lengthTreeLengths);
         Array.Clear(_mainTreeLenBackup);
@@ -167,9 +202,9 @@ public sealed class LzxDecompressor : IDisposable
         var input = inputBytes.AsSpan(inputOffset, inputCount);
         var output = outputBytes.AsSpan(outputOffset, outputCount);
 
-        int totalInput = 0;
-        int totalOutput = 0;
-        int inputPos = 0;
+        var totalInput = 0;
+        var totalOutput = 0;
+        var inputPos = 0;
 
         while (inputPos < input.Length)
         {
@@ -178,8 +213,8 @@ public sealed class LzxDecompressor : IDisposable
             int headerSize;
             int totalChunkSize;
 
-            byte firstByte = input[inputPos];
-            if (firstByte == 0xFF)
+            var firstByte = input[inputPos];
+            if (firstByte == StreamTerminator)
             {
                 if (inputPos + 5 > input.Length) break;
                 chunkUncompressedSize = (input[inputPos + 1] << 8) | input[inputPos + 2];
@@ -191,13 +226,13 @@ public sealed class LzxDecompressor : IDisposable
             {
                 if (inputPos + 2 > input.Length) break;
                 chunkCompressedSize = (input[inputPos] << 8) | input[inputPos + 1];
-                chunkUncompressedSize = 0x8000;
+                chunkUncompressedSize = DefaultUncompressedChunkSize;
                 headerSize = 2;
                 totalChunkSize = chunkCompressedSize + 2;
             }
 
-            // C line 1749: totalChunkSize > 0x980a is an error
-            if (totalChunkSize > 0x980a) break;
+            // C line 1749: totalChunkSize > MaxTotalChunkSize is an error
+            if (totalChunkSize > MaxTotalChunkSize) break;
             if (inputPos + totalChunkSize > input.Length) break;
 
             if (totalOutput + chunkUncompressedSize > output.Length)
@@ -206,25 +241,23 @@ public sealed class LzxDecompressor : IDisposable
                 if (chunkUncompressedSize <= 0)
                 {
                     // Output buffer full — skip decompression but still consume input.
-                    // XnaNative.dll uses an overflow buffer here; we just advance past
-                    // remaining chunks so inputCount reflects the full stream consumption.
                     totalInput += totalChunkSize;
                     inputPos += totalChunkSize;
-                    if (firstByte == 0xFF) break; // 0xFF terminates stream
+                    if (firstByte == StreamTerminator) break;
                     continue;
                 }
             }
 
             // C: DecompressChunk_Setup sets inputEnd = dataStart + 4 + compressedLen
             // The +4 accounts for the 4 bytes consumed by InitBitstream's seed
-            int dataToPass = chunkCompressedSize + 4;
-            int available = input.Length - (inputPos + headerSize);
+            var dataToPass = chunkCompressedSize + 4;
+            var available = input.Length - (inputPos + headerSize);
             if (dataToPass > available) dataToPass = available;
 
             var chunkInput = input.Slice(inputPos + headerSize, dataToPass);
             var chunkOutput = output.Slice(totalOutput, chunkUncompressedSize);
 
-            int decompressed = DecompressChunk(chunkInput, chunkOutput);
+            var decompressed = DecompressChunk(chunkInput, chunkOutput);
             if (decompressed < 0)
             {
                 inputCount = totalInput;
@@ -237,7 +270,7 @@ public sealed class LzxDecompressor : IDisposable
             inputPos += totalChunkSize;
 
             // C line 1786: 0xFF chunks terminate this Decompress call
-            if (firstByte == 0xFF) break;
+            if (firstByte == StreamTerminator) break;
         }
 
         inputCount = totalInput;
@@ -252,15 +285,13 @@ public sealed class LzxDecompressor : IDisposable
     private int DecompressChunk(ReadOnlySpan<byte> compressedData, Span<byte> output)
     {
         // Set up input buffer for this chunk
-        _inputBytes = compressedData.ToArray();
-        _inputPosition = 0;
-        _inputEnd = compressedData.Length;
+        _bitstream.SetInput(compressedData.ToArray(), compressedData.Length);
 
         // C line 1691: InitBitstream at start of chunk
-        InitBitstream();
+        _bitstream.Init(_blockType);
 
         // C line 1693: main block-level decompression
-        int result = DecompressBlocks(output.Length, output);
+        var result = DecompressBlocks(output.Length, output);
 
         // C line 1695: increment chunk count
         _chunkCount++;
@@ -274,25 +305,23 @@ public sealed class LzxDecompressor : IDisposable
 
     private int DecompressBlocks(int bytesRemaining, Span<byte> output)
     {
-        int totalDecompressed = 0;
-        int initialWindowPos = _windowPosition;
+        var totalDecompressed = 0;
+        var initialWindowPos = _windowPosition;
 
-        while (true)
+        while (bytesRemaining > 0)
         {
-            if (bytesRemaining < 1) break;
-
             // State 1: need block header (C line 1563)
-            if (_state == 1)
+            if (_decompressState == StateNeedHeader)
             {
                 // First block: read Intel E8 header (C line 1566)
                 if (_headerRead)
                 {
                     _headerRead = false;
-                    int intelBit = (int)ReadBits(1);
+                    var intelBit = (int)_bitstream.ReadBits(1);
                     if (intelBit != 0)
                     {
-                        int hi = (int)ReadBits(16);
-                        uint lo = ReadBits(16);
+                        var hi = (int)_bitstream.ReadBits(16);
+                        var lo = _bitstream.ReadBits(16);
                         _intelFileSize = (int)(lo | ((uint)hi << 16));
                     }
                     else
@@ -305,17 +334,17 @@ public sealed class LzxDecompressor : IDisposable
                 if (_blockType == BlockTypeUncompressed)
                 {
                     _blockType = 0;
-                    InitBitstream();
+                    _bitstream.Init(_blockType);
                 }
 
                 // Read block type and size (C line 1585)
-                int blockType = (int)ReadBits(3);
+                var blockType = (int)_bitstream.ReadBits(3);
                 _blockType = blockType;
 
-                int sizeHi = (int)ReadBits(8);
-                int sizeMid = (int)ReadBits(8);
-                int sizeLo = (int)ReadBits(8);
-                int blockSize = sizeLo + (sizeHi * 0x100 + sizeMid) * 0x100;
+                var sizeHi = (int)_bitstream.ReadBits(8);
+                var sizeMid = (int)_bitstream.ReadBits(8);
+                var sizeLo = (int)_bitstream.ReadBits(8);
+                var blockSize = sizeLo + (sizeHi * 0x100 + sizeMid) * 0x100;
                 _blockRemaining = blockSize;
 
                 if (blockType == BlockTypeAligned)
@@ -340,7 +369,7 @@ public sealed class LzxDecompressor : IDisposable
                     return -1;
                 }
 
-                _state = 2; // transition to decompressing
+                _decompressState = StateDecompressing;
             }
 
             // State 2: decompress within current block (C line 1626)
@@ -348,304 +377,51 @@ public sealed class LzxDecompressor : IDisposable
             {
                 while (_blockRemaining > 0 && bytesRemaining > 0)
                 {
-                    int toDo = _blockRemaining;
-                    if (bytesRemaining <= toDo) toDo = bytesRemaining;
-                    if (toDo == 0) return -1;
+                    var bytesToDecompress = _blockRemaining;
+                    if (bytesRemaining <= bytesToDecompress) bytesToDecompress = bytesRemaining;
+                    if (bytesToDecompress == 0) return -1;
 
-                    int err;
+                    int errorCode;
                     if (_blockType == BlockTypeAligned)
-                        err = DecompressAlignedBlock(toDo);
+                        errorCode = DecompressAlignedBlock(bytesToDecompress);
                     else if (_blockType == BlockTypeVerbatim)
-                        err = DecompressVerbatimBlock(toDo);
+                        errorCode = DecompressVerbatimBlock(bytesToDecompress);
                     else if (_blockType == BlockTypeUncompressed)
-                        err = DecompressUncompressedBlock(toDo);
+                        errorCode = DecompressUncompressedBlock(bytesToDecompress);
                     else
                         return -1;
 
-                    if (err != 0) return -1;
+                    if (errorCode != 0) return -1;
 
-                    totalDecompressed += toDo;
-                    bytesRemaining -= toDo;
-                    _blockRemaining -= toDo;
+                    totalDecompressed += bytesToDecompress;
+                    bytesRemaining -= bytesToDecompress;
+                    _blockRemaining -= bytesToDecompress;
                 }
             }
 
             // When block is done, need new header (C line 1658)
             if (_blockRemaining == 0)
             {
-                _state = 1;
+                _decompressState = StateNeedHeader;
             }
-
-            if (bytesRemaining == 0) break;
         }
 
         // C line 1664: re-init bitstream at END of chunk
-        InitBitstream();
+        _bitstream.Init(_blockType);
 
         // C line 1667-1670: copy from window to output and apply E8
-        // Use initialWindowPos (saved before decompression) as the copy start.
-        // The decoder can overshoot endPos when the last match straddles the boundary,
-        // causing _windowPosition to advance past the target. Using the initial position
-        // ensures we copy from where the data actually starts in the window.
-        for (int i = 0; i < totalDecompressed; i++)
+        for (var i = 0; i < totalDecompressed; i++)
         {
             output[i] = _window[(initialWindowPos + i) & _windowMask];
         }
 
         // C: CopyOutputAndE8Translate — apply E8 if needed
-        if (_intelFileSize != 0 && _chunkCount <= 0x7fff)
+        if (_intelFileSize != 0 && _chunkCount <= MaxChunkCountForE8)
         {
             E8Translate(output, totalDecompressed);
         }
 
         return totalDecompressed;
-    }
-
-    // ================================================================
-    // BITSTREAM OPERATIONS — C: InitBitstream, RemoveBits, ReadBits
-    // ================================================================
-
-    // C: InitBitstream (0x1019a9b0, line 24)
-    // Loads 4 bytes as two LE words. SKIPPED if blockType == 3 (uncompressed).
-    private void InitBitstream()
-    {
-        if (_blockType != BlockTypeUncompressed)
-        {
-            if (_inputPosition + 3 < _inputEnd)
-            {
-                uint word0 = (uint)(_inputBytes[_inputPosition] | (_inputBytes[_inputPosition + 1] << 8));
-                uint word1 = (uint)(_inputBytes[_inputPosition + 2] | (_inputBytes[_inputPosition + 3] << 8));
-                _inputPosition += 4;
-                _bitBuffer = (word0 << 16) | word1;
-                _bitsRemaining = 16;
-            }
-        }
-    }
-
-    // C: RemoveBits (0x1019aa20, line 48)
-    private void RemoveBits(int count)
-    {
-        _bitBuffer <<= (count & 0x1f);
-        _bitsRemaining -= count;
-
-        if (_bitsRemaining < 1)
-        {
-            if (_inputPosition + 1 >= _inputEnd)
-            {
-                _errorFlag = true;
-                return;
-            }
-            uint word = (uint)(_inputBytes[_inputPosition] | (_inputBytes[_inputPosition + 1] << 8));
-            _inputPosition += 2;
-            int newBR = _bitsRemaining + 16;
-            _bitBuffer |= word << ((-_bitsRemaining) & 0x1f);
-            _bitsRemaining = newBR;
-
-            // Double refill (C line 69)
-            if (newBR < 1)
-            {
-                if (_inputPosition + 1 >= _inputEnd)
-                {
-                    _errorFlag = true;
-                    return;
-                }
-                word = (uint)(_inputBytes[_inputPosition] | (_inputBytes[_inputPosition + 1] << 8));
-                _inputPosition += 2;
-                _bitBuffer |= word << ((-newBR) & 0x1f);
-                _bitsRemaining = newBR + 16;
-            }
-        }
-    }
-
-    // C: ReadBits (0x1019aaf0, line 87)
-    private uint ReadBits(int count)
-    {
-        uint val = _bitBuffer >> ((32 - count) & 0x1f);
-        RemoveBits(count);
-        return val;
-    }
-
-    // ================================================================
-    // HUFFMAN TABLE BUILDERS
-    // ================================================================
-
-    // C: MakeDecodeTable (0x1019d5c0, line 104)
-    // Cumulative-sum algorithm verified against XnaNative on 3,870 files.
-    private static bool MakeDecodeTable(int numSymbols, ReadOnlySpan<byte> lengths,
-        int tableBits, short[] table)
-    {
-        int tableSize = 1 << tableBits;
-
-        // Count code lengths (C: local_90[2..17])
-        Span<int> work = stackalloc int[36];
-        work.Clear();
-
-        for (int i = 0; i < numSymbols; i++)
-        {
-            work[lengths[i] + 1]++;
-        }
-
-        // Cumulative code-space sum in 16-bit fixed point (C line 134)
-        // local_90[0x13] = cumulative sum start
-        work[0x13] = 0;
-        for (int i = 1; i <= 16; i++)
-        {
-            // Unrolled 4-at-a-time in C, but sequential is equivalent
-            work[i + 0x13] = work[i + 1] * (1 << (16 - i)) + work[i + 0x12];
-        }
-
-        // Verify completeness (C line 150)
-        int total = work[0x23]; // = work[16 + 0x13]
-        if (total != 0x10000)
-        {
-            if (total == 0)
-            {
-                // All zero lengths — clear table
-                Array.Clear(table, 0, Math.Min(table.Length, tableSize));
-                return true;
-            }
-            return false; // oversubscribed or undersubscribed
-        }
-
-        // Compute first canonical code per length (C line 168)
-        int bitsToShift = 16 - tableBits;
-
-        // For lengths 1..tableBits: shift cumulative sums right by (16-tableBits)
-        // and compute fill counts
-        int fillIdx = 1;
-        int remaining = tableBits;
-        if (tableBits > 0)
-        {
-            while (fillIdx <= tableBits)
-            {
-                work[fillIdx + 0x12] >>= (bitsToShift & 0x1f);
-                fillIdx++;
-                work[fillIdx] = 1 << ((remaining - 1) & 0x1f);
-                remaining--;
-            }
-        }
-
-        // For lengths tableBits+1..16: compute fill counts
-        if (fillIdx <= 16)
-        {
-            int shift = 16 - fillIdx;
-            while (fillIdx <= 16)
-            {
-                work[fillIdx + 1] = 1 << (shift & 0x1f);
-                fillIdx++;
-                shift--;
-            }
-        }
-
-        // Clear unused portion of direct table (C line 190)
-        int firstUnused = work[tableBits + 0x13] >> (bitsToShift & 0x1f);
-        if (firstUnused < tableSize)
-        {
-            for (int i = firstUnused; i < tableSize; i++)
-            {
-                table[i] = 0;
-            }
-        }
-
-        // Populate tables symbol by symbol (C line 204)
-        // nextOverflow must be >= tableSize/2 so that overflow nodes (at nextOverflow*2)
-        // don't overlap with the direct table (indices 0..tableSize-1).
-        int nextOverflow = Math.Max(numSymbols, (tableSize + 1) / 2);
-
-        for (int sym = 0; sym < numSymbols; sym++)
-        {
-            int len = lengths[sym];
-            if (len == 0) continue;
-
-            int code = work[len + 0x12];         // current table position
-            int next = code + work[len + 1];     // next position
-
-            if (len > tableBits)
-            {
-                // Overflow tree (C line 218-238)
-                // Matches C's simple do-while loop exactly.
-                work[len + 0x12] = next;
-                int overflowBits = len - tableBits;
-                int directIdx = code >> (bitsToShift & 0x1f);
-                int iVar8 = code << (tableBits & 0x1f);
-
-                // nodeRef: index into table[] where the current pointer lives.
-                // Starts at the direct table entry, then moves into overflow region.
-                int nodeRef = directIdx;
-
-                for (int b = 0; b < overflowBits; b++)
-                {
-                    // If empty slot, allocate a new overflow node pair
-                    if (table[nodeRef] == 0)
-                    {
-                        if (nextOverflow * 2 + 1 >= table.Length) return false;
-                        table[nextOverflow * 2] = 0;
-                        table[nextOverflow * 2 + 1] = 0;
-                        table[nodeRef] = (short)(-nextOverflow);
-                        nextOverflow++;
-                    }
-
-                    // Navigate: go to overflow node and select child by bit
-                    // C: psVar9 = (int16_t*)(overflowTable + *psVar9 * -4);
-                    //    if ((int16_t)iVar8 < 0) psVar9++;
-                    int nodeIdx = -table[nodeRef];
-                    int bit = ((short)iVar8 < 0) ? 1 : 0;
-                    nodeRef = nodeIdx * 2 + bit;
-                    iVar8 <<= 1;
-                }
-
-                // Store symbol at leaf (C line 238: *psVar9 = sVar3)
-                table[nodeRef] = (short)sym;
-            }
-            else
-            {
-                // Direct table: fill entries (C line 240)
-                if (next > tableSize) return false;
-                for (int i = code; i < next; i++)
-                {
-                    table[i] = (short)sym;
-                }
-                work[len + 0x12] = next;
-            }
-        }
-
-        return true;
-    }
-
-    // C: MakeAlignedDecodeTable (0x1019d8f0, line 275)
-    private void MakeAlignedDecodeTable()
-    {
-        int tableSize = 1 << AlignedTreeTableBits;
-        Array.Clear(_alignedTreeTable, 0, tableSize);
-
-        Span<int> counts = stackalloc int[8];
-        counts.Clear();
-        for (int i = 0; i < AlignedTreeNumElements; i++)
-        {
-            if (_alignedTreeLengths[i] <= 7) counts[_alignedTreeLengths[i]]++;
-        }
-
-        Span<int> nextCode = stackalloc int[8];
-        int code = 0;
-        counts[0] = 0;
-        for (int bits = 1; bits <= 7; bits++)
-        {
-            code = (code + counts[bits - 1]) << 1;
-            nextCode[bits] = code;
-        }
-
-        for (int sym = 0; sym < AlignedTreeNumElements; sym++)
-        {
-            int len = _alignedTreeLengths[sym];
-            if (len == 0) continue;
-            int c = nextCode[len]++;
-            int baseIdx = c << (AlignedTreeTableBits - len);
-            int fill = 1 << (AlignedTreeTableBits - len);
-            for (int i = 0; i < fill; i++)
-            {
-                _alignedTreeTable[baseIdx + i] = (byte)sym;
-            }
-        }
     }
 
     // ================================================================
@@ -655,11 +431,13 @@ public sealed class LzxDecompressor : IDisposable
     // C: ReadAlignedTree (0x1019d560, line 669)
     private void ReadAlignedTree()
     {
-        for (int i = 0; i < AlignedTreeNumElements; i++)
+        for (var i = 0; i < AlignedTreeNumElements; i++)
         {
-            _alignedTreeLengths[i] = (byte)ReadBits(3);
+            _alignedTreeLengths[i] = (byte)_bitstream.ReadBits(3);
         }
-        MakeAlignedDecodeTable();
+
+        HuffmanTableBuilder.BuildAlignedDecodeTable(
+            _alignedTreeLengths, _alignedTreeTable, AlignedTreeTableBits, AlignedTreeNumElements);
     }
 
     // C: ReadMainAndLengthTrees (0x1019d4a0, line 634)
@@ -667,416 +445,233 @@ public sealed class LzxDecompressor : IDisposable
     {
         // Read main tree part 1: literals (0-255)
         ReadCodeLengthsWithPreTree(NumChars, _mainTreeLenBackup, _mainTreeLengths, 0);
-        if (_errorFlag) return false;
+        if (_bitstream.HasError) return false;
 
         // Read main tree part 2: match symbols (256+)
         ReadCodeLengthsWithPreTree(
             _numPositionSlots * 8,
             _mainTreeLenBackup, _mainTreeLengths, NumChars);
-        if (_errorFlag) return false;
+        if (_bitstream.HasError) return false;
 
-        if (!MakeDecodeTable(_mainTreeElements, _mainTreeLengths, MainTreeTableBits, _mainTreeTable))
+        if (!HuffmanTableBuilder.BuildDecodeTable(
+                _mainTreeElements, _mainTreeLengths, MainTreeTableBits, _mainTreeTable))
             return false;
 
         // Read length tree
         ReadCodeLengthsWithPreTree(LengthTreeNumElements, _lengthTreeLenBackup, _lengthTreeLengths, 0);
-        if (_errorFlag) return false;
+        if (_bitstream.HasError) return false;
 
-        if (!MakeDecodeTable(LengthTreeNumElements, _lengthTreeLengths, LengthTreeTableBits, _lengthTreeTable))
+        if (!HuffmanTableBuilder.BuildDecodeTable(
+                LengthTreeNumElements, _lengthTreeLengths, LengthTreeTableBits, _lengthTreeTable))
             return false;
 
         return true;
     }
 
     // C: ReadCodeLengthsWithPreTree (0x1019cf30, line 335)
-    // All bitstream operations are INLINE for performance, matching the C exactly.
     private void ReadCodeLengthsWithPreTree(int numElements,
         byte[] oldLengths, byte[] newLengths, int offset)
     {
         // Read 20 pretree code lengths, 4 bits each (C line 356)
         Span<byte> preLengths = stackalloc byte[24];
         preLengths.Clear();
-        for (int i = 0; i < PreTreeNumElements; i++)
+        for (var i = 0; i < PreTreeNumElements; i++)
         {
-            byte b = (byte)ReadBits(4);
-            preLengths[i] = b;
-            if (b > 16) { _errorFlag = true; return; }
-        }
-        if (_errorFlag) return;
-
-        // Build pretree decode table (C line 370)
-        // Note: return value NOT checked — matches C behavior
-        short[] preTreeTable = new short[256 + PreTreeNumElements * 4];
-        MakeDecodeTable(PreTreeNumElements, preLengths, 8, preTreeTable);
-
-        // Cache bitstream state locally (C line 373)
-        int inputPos = _inputPosition;
-        int inputEnd = _inputEnd;
-        uint bitBuffer = _bitBuffer;
-        int bitsRemain = _bitsRemaining;
-        bool errorFlag = _errorFlag;
-        int outPos = 0;
-
-        if (numElements > 0)
-        {
-            while (outPos < numElements)
+            var byteVal = (byte)_bitstream.ReadBits(4);
+            preLengths[i] = byteVal;
+            if (byteVal > 16)
             {
-                // Decode pretree symbol (C line 391)
-                int preTreeSymbol = preTreeTable[bitBuffer >> 24];
-
-                // Walk overflow if needed (C line 394)
-                if (preTreeSymbol < 0)
-                {
-                    uint mask = 0x800000;
-                    while (preTreeSymbol < 0)
-                    {
-                        int idx;
-                        if ((bitBuffer & mask) == 0)
-                            idx = (-preTreeSymbol) * 2;
-                        else
-                            idx = (-preTreeSymbol) * 2 + 1;
-                        if (idx >= preTreeTable.Length) { errorFlag = true; goto WRITEBACK; }
-                        preTreeSymbol = preTreeTable[idx];
-                        mask >>= 1;
-                    }
-                }
-
-                if (preTreeSymbol > 23) { errorFlag = true; goto WRITEBACK; }
-
-                // Consume pretree symbol bits — inline (C line 411)
-                int symLen = preLengths[preTreeSymbol];
-                bitBuffer <<= (symLen & 0x1f);
-                bitsRemain -= symLen;
-                if (bitsRemain < 1)
-                {
-                    if (inputPos + 1 >= inputEnd) { errorFlag = true; goto WRITEBACK; }
-                    uint word = (uint)(_inputBytes[inputPos] | (_inputBytes[inputPos + 1] << 8));
-                    bitBuffer |= word << ((-bitsRemain) & 0x1f);
-                    int newBR = bitsRemain + 16;
-                    inputPos += 2;
-                    if (newBR < 1)
-                    {
-                        if (inputPos + 1 >= inputEnd) { errorFlag = true; goto WRITEBACK; }
-                        word = (uint)(_inputBytes[inputPos] | (_inputBytes[inputPos + 1] << 8));
-                        bitBuffer |= word << ((-newBR) & 0x1f);
-                        bitsRemain = newBR + 16;
-                        inputPos += 2;
-                    }
-                    else
-                    {
-                        bitsRemain = newBR;
-                    }
-                }
-                if (errorFlag) goto WRITEBACK;
-
-                // Process pretree symbol (C line 434)
-                if (preTreeSymbol == 0x11)
-                {
-                    // RepeatZeroShort (17): read 4 bits, count = value + 4 (C line 436)
-                    uint count = bitBuffer >> 28;
-                    bitBuffer <<= 4;
-                    bitsRemain -= 4;
-                    if (bitsRemain < 1)
-                    {
-                        if (inputPos + 1 < inputEnd)
-                        {
-                            uint w = (uint)(_inputBytes[inputPos] | (_inputBytes[inputPos + 1] << 8));
-                            bitBuffer |= w << ((-bitsRemain) & 0x1f);
-                            int nb = bitsRemain + 16;
-                            inputPos += 2;
-                            if (nb < 1)
-                            {
-                                if (inputPos + 1 < inputEnd)
-                                {
-                                    w = (uint)(_inputBytes[inputPos] | (_inputBytes[inputPos + 1] << 8));
-                                    bitBuffer |= w << ((-nb) & 0x1f);
-                                    bitsRemain = nb + 16;
-                                    inputPos += 2;
-                                }
-                                else { errorFlag = true; }
-                            }
-                            else { bitsRemain = nb; }
-                        }
-                        else { errorFlag = true; }
-                    }
-                    count += 4;
-                    if (outPos + (int)count > numElements)
-                        count = (uint)(numElements - outPos);
-                    for (int i = 0; i < (int)count; i++)
-                        newLengths[offset + outPos + i] = 0;
-                    outPos += (int)count - 1;
-                }
-                else if (preTreeSymbol == 0x12)
-                {
-                    // RepeatZeroLong (18): read 5 bits, count = value + 20 (C line 477)
-                    uint count = bitBuffer >> 27;
-                    bitBuffer <<= 5;
-                    bitsRemain -= 5;
-                    if (bitsRemain < 1)
-                    {
-                        if (inputPos + 1 < inputEnd)
-                        {
-                            uint w = (uint)(_inputBytes[inputPos] | (_inputBytes[inputPos + 1] << 8));
-                            bitBuffer |= w << ((-bitsRemain) & 0x1f);
-                            int nb = bitsRemain + 16;
-                            inputPos += 2;
-                            if (nb < 1)
-                            {
-                                if (inputPos + 1 < inputEnd)
-                                {
-                                    w = (uint)(_inputBytes[inputPos] | (_inputBytes[inputPos + 1] << 8));
-                                    bitBuffer |= w << ((-nb) & 0x1f);
-                                    bitsRemain = nb + 16;
-                                    inputPos += 2;
-                                }
-                                else { errorFlag = true; }
-                            }
-                            else { bitsRemain = nb; }
-                        }
-                        else { errorFlag = true; }
-                    }
-                    count += 20;
-                    if (outPos + (int)count > numElements)
-                        count = (uint)(numElements - outPos);
-                    if ((int)count < 1) { outPos--; goto NEXT; }
-                    for (int i = 0; i < (int)count; i++)
-                        newLengths[offset + outPos + i] = 0;
-                    outPos += (int)count - 1;
-                }
-                else if (preTreeSymbol == 0x13)
-                {
-                    // RepeatSame (19): count = 4 - ((int)bitBuffer >> 31) = 4 or 5 (C line 515)
-                    uint count = (uint)(4 - ((int)bitBuffer >> 31));
-                    uint uVar5 = bitBuffer << 1;
-                    bitsRemain -= 1;
-                    if (bitsRemain < 1)
-                    {
-                        if (inputPos + 1 < inputEnd)
-                        {
-                            uint w = (uint)(_inputBytes[inputPos] | (_inputBytes[inputPos + 1] << 8));
-                            uVar5 |= w << ((-bitsRemain) & 0x1f);
-                            int nb = bitsRemain + 16;
-                            inputPos += 2;
-                            if (nb < 1)
-                            {
-                                if (inputPos + 1 < inputEnd)
-                                {
-                                    w = (uint)(_inputBytes[inputPos] | (_inputBytes[inputPos + 1] << 8));
-                                    uVar5 |= w << ((-nb) & 0x1f);
-                                    bitsRemain = nb + 16;
-                                    inputPos += 2;
-                                }
-                                else { errorFlag = true; }
-                            }
-                            else { bitsRemain = nb; }
-                        }
-                        else { errorFlag = true; }
-                    }
-
-                    if (outPos + (int)count > numElements)
-                        count = (uint)(numElements - outPos);
-
-                    // Decode another pretree symbol for the delta value (C line 541)
-                    int nextSym = preTreeTable[uVar5 >> 24];
-                    if (nextSym < 0)
-                    {
-                        uint m2 = 0x800000;
-                        while (nextSym < 0)
-                        {
-                            int idx;
-                            if ((uVar5 & m2) == 0)
-                                idx = (-nextSym) * 2;
-                            else
-                                idx = (-nextSym) * 2 + 1;
-                            if (idx >= preTreeTable.Length) { errorFlag = true; goto WRITEBACK; }
-                            nextSym = preTreeTable[idx];
-                            m2 >>= 1;
-                        }
-                    }
-                    if (nextSym > 23) { errorFlag = true; goto WRITEBACK; }
-
-                    // Consume next symbol bits (C line 557)
-                    int nextLen = preLengths[nextSym];
-                    bitBuffer = uVar5 << (nextLen & 0x1f);
-                    bitsRemain -= nextLen;
-                    if (bitsRemain < 1)
-                    {
-                        if (inputPos + 1 < inputEnd)
-                        {
-                            uint w = (uint)(_inputBytes[inputPos] | (_inputBytes[inputPos + 1] << 8));
-                            bitBuffer |= w << ((-bitsRemain) & 0x1f);
-                            int nb = bitsRemain + 16;
-                            inputPos += 2;
-                            if (nb < 1)
-                            {
-                                if (inputPos + 1 < inputEnd)
-                                {
-                                    w = (uint)(_inputBytes[inputPos] | (_inputBytes[inputPos + 1] << 8));
-                                    bitBuffer |= w << ((-nb) & 0x1f);
-                                    bitsRemain = nb + 16;
-                                    inputPos += 2;
-                                }
-                                else { errorFlag = true; }
-                            }
-                            else { bitsRemain = nb; }
-                        }
-                        else { errorFlag = true; }
-                    }
-
-                    // Delta decode (C line 577)
-                    int delta = oldLengths[offset + outPos] - nextSym;
-                    int newLen = delta + 17;
-                    if (newLen > 16) newLen = delta;
-                    if ((byte)newLen > 16) { errorFlag = true; goto WRITEBACK; }
-
-                    for (int i = 0; i < (int)count; i++)
-                        newLengths[offset + outPos + i] = (byte)newLen;
-                    outPos += (int)count - 1;
-                    goto NEXT;
-                }
-                else
-                {
-                    // Symbol 0-16: single delta decode (C line 604)
-                    int delta = oldLengths[offset + outPos] - preTreeSymbol;
-                    int newLen = delta + 17;
-                    if (newLen > 16) newLen = delta;
-                    if ((byte)newLen > 16) { errorFlag = true; goto WRITEBACK; }
-                    newLengths[offset + outPos] = (byte)newLen;
-                }
-
-            NEXT:
-                outPos++;
+                _bitstream.HasError = true;
+                return;
             }
         }
 
-    WRITEBACK:
-        _inputPosition = inputPos;
-        _bitBuffer = bitBuffer;
-        _bitsRemaining = bitsRemain;
-        _errorFlag = errorFlag;
+        if (_bitstream.HasError) return;
+
+        // Build pretree decode table (C line 370)
+        // Note: return value NOT checked — matches C behavior
+        var preTreeTable = new short[256 + PreTreeNumElements * 4];
+        HuffmanTableBuilder.BuildDecodeTable(PreTreeNumElements, preLengths, 8, preTreeTable);
+
+        var outPos = 0;
+
+        while (outPos < numElements)
+        {
+            // Decode pretree symbol (C line 391)
+            var preTreeSymbol = _bitstream.DecodeSymbol(preTreeTable, 8);
+            if (_bitstream.HasError) return;
+
+            if (preTreeSymbol < 0 || preTreeSymbol > 23)
+            {
+                _bitstream.HasError = true;
+                return;
+            }
+
+            // Consume pretree symbol bits (C line 411)
+            _bitstream.ConsumeBits(preLengths[preTreeSymbol]);
+            if (_bitstream.HasError) return;
+
+            // Process pretree symbol (C line 434)
+            if (preTreeSymbol == 0x11)
+            {
+                // RepeatZeroShort (17): read 4 bits, count = value + 4 (C line 436)
+                var count = (int)_bitstream.ReadBits(4) + 4;
+                if (outPos + count > numElements)
+                    count = numElements - outPos;
+                for (var i = 0; i < count; i++)
+                    newLengths[offset + outPos + i] = 0;
+                outPos += count;
+            }
+            else if (preTreeSymbol == 0x12)
+            {
+                // RepeatZeroLong (18): read 5 bits, count = value + 20 (C line 477)
+                var count = (int)_bitstream.ReadBits(5) + 20;
+                if (outPos + count > numElements)
+                    count = numElements - outPos;
+                if (count < 1)
+                {
+                    outPos++;
+                    continue;
+                }
+
+                for (var i = 0; i < count; i++)
+                    newLengths[offset + outPos + i] = 0;
+                outPos += count;
+            }
+            else if (preTreeSymbol == 0x13)
+            {
+                // RepeatSame (19): count = 4 or 5 based on sign bit (C line 515)
+                var count = 4 - ((int)_bitstream.BitBuffer >> 31);
+                _bitstream.ConsumeBits(1);
+                if (_bitstream.HasError) return;
+
+                if (outPos + count > numElements)
+                    count = numElements - outPos;
+
+                // Decode another pretree symbol for the delta value (C line 541)
+                var nextSymbol = _bitstream.DecodeSymbol(preTreeTable, 8);
+                if (_bitstream.HasError) return;
+
+                if (nextSymbol < 0 || nextSymbol > 23)
+                {
+                    _bitstream.HasError = true;
+                    return;
+                }
+
+                _bitstream.ConsumeBits(preLengths[nextSymbol]);
+                if (_bitstream.HasError) return;
+
+                // Delta decode (C line 577)
+                var delta = oldLengths[offset + outPos] - nextSymbol;
+                var newLen = delta + 17;
+                if (newLen > 16) newLen = delta;
+                if ((byte)newLen > 16)
+                {
+                    _bitstream.HasError = true;
+                    return;
+                }
+
+                for (var i = 0; i < count; i++)
+                    newLengths[offset + outPos + i] = (byte)newLen;
+                outPos += count;
+            }
+            else
+            {
+                // Symbol 0-16: single delta decode (C line 604)
+                var delta = oldLengths[offset + outPos] - preTreeSymbol;
+                var newLen = delta + 17;
+                if (newLen > 16) newLen = delta;
+                if ((byte)newLen > 16)
+                {
+                    _bitstream.HasError = true;
+                    return;
+                }
+
+                newLengths[offset + outPos] = (byte)newLen;
+                outPos++;
+            }
+        }
     }
 
     // C: ReadUncompressedHeader (0x1019c110, line 694)
     private bool ReadUncompressedHeader()
     {
         // Back up 2 bytes (the pre-loaded reserve word)
-        _inputPosition -= 2;
-        _bitBuffer = 0;
-        _bitsRemaining = 0;
+        _bitstream.BackUp(2);
 
-        if (_inputPosition + 12 > _inputEnd) return false;
+        if (!_bitstream.HasAvailable(12)) return false;
 
-        _r0 = _inputBytes[_inputPosition] | (_inputBytes[_inputPosition + 1] << 8) |
-              (_inputBytes[_inputPosition + 2] << 16) | (_inputBytes[_inputPosition + 3] << 24);
-        _inputPosition += 4;
-        _r1 = _inputBytes[_inputPosition] | (_inputBytes[_inputPosition + 1] << 8) |
-              (_inputBytes[_inputPosition + 2] << 16) | (_inputBytes[_inputPosition + 3] << 24);
-        _inputPosition += 4;
-        _r2 = _inputBytes[_inputPosition] | (_inputBytes[_inputPosition + 1] << 8) |
-              (_inputBytes[_inputPosition + 2] << 16) | (_inputBytes[_inputPosition + 3] << 24);
-        _inputPosition += 4;
+        _repeatOffset0 = _bitstream.ReadInt32LE();
+        _repeatOffset1 = _bitstream.ReadInt32LE();
+        _repeatOffset2 = _bitstream.ReadInt32LE();
         return true;
     }
 
     // ================================================================
+    // WINDOW HELPER
+    // ================================================================
+
+    /// <summary>
+    ///     Writes a byte to the sliding window at the given position,
+    ///     mirroring it to the overflow region if near the start.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void WriteToWindow(int position, byte value)
+    {
+        _window[position] = value;
+        if (position < WindowMirrorThreshold)
+        {
+            _window[position + _windowSize] = value;
+        }
+    }
+
+    // ================================================================
     // VERBATIM BLOCK — C: DecompressVerbatim_Inner/FastPath (lines 769-1086)
-    // Combined into single function with inline mirroring check.
     // ================================================================
 
     private int DecompressVerbatimBlock(int count)
     {
-        int windowPos = _windowPosition;
-        int endPos = windowPos + count;
-        int windowSize = _windowSize;
-        int windowMask = _windowMask;
-
-        // Cache bitstream locally (matches C inner loops)
-        uint bitBuffer = _bitBuffer;
-        int bitsRemain = _bitsRemaining;
-        int inputPos = _inputPosition;
-        int inputEnd = _inputEnd;
+        var windowPos = _windowPosition;
+        var endPos = windowPos + count;
 
         while (windowPos < endPos)
         {
-            // Decode main tree symbol — peek top 10 bits (C line 793)
-            int mainSymbol = _mainTreeTable[bitBuffer >> 22];
+            // Decode main tree symbol — peek top bits (C line 793)
+            var mainSymbol = _bitstream.DecodeSymbol(_mainTreeTable, MainTreeTableBits);
 
-            if (mainSymbol < 0)
+            // Guard: ensure input available for refill (C line 809)
+            if (!_bitstream.HasInputForRefill())
             {
-                // Overflow walk (C line 795)
-                uint mask = 0x200000;
-                while (mainSymbol < 0)
-                {
-                    int idx;
-                    if ((bitBuffer & mask) == 0)
-                        idx = (-mainSymbol) * 2;
-                    else
-                        idx = (-mainSymbol) * 2 + 1;
-                    mainSymbol = _mainTreeTable[idx];
-                    mask >>= 1;
-                }
+                _windowPosition = windowPos;
+                return -1;
             }
 
-            if (inputPos + 1 >= inputEnd) { _windowPosition = windowPos; goto WRITEBACK_ERR; }
-
-            // Consume bits (C line 809)
-            int codeLen = _mainTreeLengths[mainSymbol];
-            bitBuffer <<= (codeLen & 0x1f);
-            bitsRemain -= codeLen;
-            if (bitsRemain < 1)
-            {
-                uint w = (uint)(_inputBytes[inputPos] | (_inputBytes[inputPos + 1] << 8));
-                bitBuffer |= w << ((-bitsRemain) & 0x1f);
-                bitsRemain += 16;
-                inputPos += 2;
-            }
+            // Consume symbol bits (C line 809)
+            _bitstream.ConsumeBits(_mainTreeLengths[mainSymbol]);
 
             if (mainSymbol < NumChars)
             {
                 // Literal byte (C line 822)
-                int mpos = windowPos & windowMask;
-                _window[mpos] = (byte)(mainSymbol);
-                if (mpos < 0x101)
-                    _window[mpos + windowSize] = (byte)(mainSymbol);
+                var maskedPos = windowPos & _windowMask;
+                WriteToWindow(maskedPos, (byte)mainSymbol);
                 windowPos++;
             }
             else
             {
                 // Match (C line 830)
-                int matchCode = mainSymbol - NumChars;
-                int lengthSlot = matchCode & 7;
-                int positionSlot = matchCode >> 3;
+                var matchCode = mainSymbol - NumChars;
+                var lengthSlot = matchCode & 7;
+                var positionSlot = matchCode >> 3;
 
                 if (lengthSlot == 7)
                 {
                     // Decode length tree (C line 833)
-                    int lengthSym = _lengthTreeTable[bitBuffer >> 24];
-                    if (lengthSym < 0)
-                    {
-                        uint lmask = 0x800000;
-                        while (lengthSym < 0)
-                        {
-                            int idx = ((bitBuffer & lmask) == 0)
-                                ? (-lengthSym) * 2
-                                : (-lengthSym) * 2 + 1;
-                            lengthSym = _lengthTreeTable[idx];
-                            lmask >>= 1;
-                        }
-                    }
-                    int lLen = _lengthTreeLengths[lengthSym];
-                    bitBuffer <<= (lLen & 0x1f);
-                    bitsRemain -= lLen;
-                    if (bitsRemain < 1)
-                    {
-                        uint w = (uint)(_inputBytes[inputPos] | (_inputBytes[inputPos + 1] << 8));
-                        bitBuffer |= w << ((-bitsRemain) & 0x1f);
-                        bitsRemain += 16;
-                        inputPos += 2;
-                    }
-                    lengthSlot = lengthSym + 7;
+                    var lengthSymbol = _bitstream.DecodeSymbol(_lengthTreeTable, LengthTreeTableBits);
+                    _bitstream.ConsumeBits(_lengthTreeLengths[lengthSymbol]);
+                    lengthSlot = lengthSymbol + 7;
                 }
 
-                int matchLength = lengthSlot + 2;
+                var matchLength = lengthSlot + 2;
 
                 // Decode match offset (C line 857)
                 int matchOffset;
@@ -1084,77 +679,52 @@ public sealed class LzxDecompressor : IDisposable
                 {
                     matchOffset = positionSlot switch
                     {
-                        0 => _r0,
-                        1 => _r1,
-                        _ => _r2
+                        0 => _repeatOffset0,
+                        1 => _repeatOffset1,
+                        _ => _repeatOffset2
                     };
                     if (positionSlot != 0)
                     {
-                        if (positionSlot == 1) { _r1 = _r0; }
-                        else { _r2 = _r0; }
-                        _r0 = matchOffset;
+                        if (positionSlot == 1)
+                        {
+                            _repeatOffset1 = _repeatOffset0;
+                        }
+                        else
+                        {
+                            _repeatOffset2 = _repeatOffset0;
+                        }
+
+                        _repeatOffset0 = matchOffset;
                     }
                 }
                 else
                 {
                     int extraBitsCount = ExtraBits[positionSlot];
-                    uint extraVal = bitBuffer >> ((32 - extraBitsCount) & 0x1f);
-                    bitBuffer <<= (extraBitsCount & 0x1f);
-                    bitsRemain -= extraBitsCount;
-                    if (bitsRemain < 1)
-                    {
-                        uint w = (uint)(_inputBytes[inputPos] | (_inputBytes[inputPos + 1] << 8));
-                        bitBuffer |= w << ((-bitsRemain) & 0x1f);
-                        bitsRemain += 16;
-                        inputPos += 2;
-                        if (bitsRemain < 1)
-                        {
-                            w = (uint)(_inputBytes[inputPos] | (_inputBytes[inputPos + 1] << 8));
-                            bitBuffer |= w << ((-bitsRemain) & 0x1f);
-                            bitsRemain += 16;
-                            inputPos += 2;
-                        }
-                    }
+                    var extraVal = _bitstream.ReadBits(extraBitsCount);
 
-                    if (positionSlot == 3)
-                    {
-                        matchOffset = 1;
-                    }
-                    else
-                    {
-                        matchOffset = (int)extraVal + PositionBase[positionSlot];
-                    }
-                    _r2 = _r1;
-                    _r1 = _r0;
-                    _r0 = matchOffset;
+                    matchOffset = positionSlot == 3
+                        ? 1
+                        : (int)extraVal + PositionBase[positionSlot];
+
+                    _repeatOffset2 = _repeatOffset1;
+                    _repeatOffset1 = _repeatOffset0;
+                    _repeatOffset0 = matchOffset;
                 }
 
                 // Copy match (C line 902)
-                int srcPos = windowPos - matchOffset;
-                for (int i = 0; i < matchLength; i++)
+                var srcPos = windowPos - matchOffset;
+                for (var i = 0; i < matchLength; i++)
                 {
-                    int mpos = windowPos & windowMask;
-                    byte b = _window[(srcPos + i) & windowMask];
-                    _window[mpos] = b;
-                    if (mpos < 0x101)
-                        _window[mpos + windowSize] = b;
+                    var maskedPos = windowPos & _windowMask;
+                    var byteVal = _window[(srcPos + i) & _windowMask];
+                    WriteToWindow(maskedPos, byteVal);
                     windowPos++;
                 }
             }
         }
 
-        // Writeback (C line 786)
-        _bitBuffer = bitBuffer;
-        _bitsRemaining = bitsRemain;
-        _inputPosition = inputPos;
         _windowPosition = windowPos;
         return 0;
-
-    WRITEBACK_ERR:
-        _bitBuffer = bitBuffer;
-        _bitsRemaining = bitsRemain;
-        _inputPosition = inputPos;
-        return -1;
     }
 
     // ================================================================
@@ -1163,99 +733,59 @@ public sealed class LzxDecompressor : IDisposable
 
     private int DecompressAlignedBlock(int count)
     {
-        int windowPos = _windowPosition;
-        int endPos = windowPos + count;
-        int windowSize = _windowSize;
-        int windowMask = _windowMask;
-
-        uint bitBuffer = _bitBuffer;
-        int bitsRemain = _bitsRemaining;
-        int inputPos = _inputPosition;
-        int inputEnd = _inputEnd;
+        var windowPos = _windowPosition;
+        var endPos = windowPos + count;
 
         while (windowPos < endPos)
         {
             // Decode main tree symbol
-            int mainSymbol = _mainTreeTable[bitBuffer >> 22];
-            if (mainSymbol < 0)
+            var mainSymbol = _bitstream.DecodeSymbol(_mainTreeTable, MainTreeTableBits);
+
+            if (!_bitstream.HasInputForRefill())
             {
-                uint mask = 0x200000;
-                while (mainSymbol < 0)
-                {
-                    int idx = ((bitBuffer & mask) == 0)
-                        ? (-mainSymbol) * 2
-                        : (-mainSymbol) * 2 + 1;
-                    mainSymbol = _mainTreeTable[idx];
-                    mask >>= 1;
-                }
+                _windowPosition = windowPos;
+                return -1;
             }
 
-            if (inputPos + 1 >= inputEnd) { _windowPosition = windowPos; goto WRITEBACK_ERR; }
-
-            int codeLen = _mainTreeLengths[mainSymbol];
-            bitBuffer <<= (codeLen & 0x1f);
-            bitsRemain -= codeLen;
-            if (bitsRemain < 1)
-            {
-                uint w = (uint)(_inputBytes[inputPos] | (_inputBytes[inputPos + 1] << 8));
-                bitBuffer |= w << ((-bitsRemain) & 0x1f);
-                bitsRemain += 16;
-                inputPos += 2;
-            }
+            _bitstream.ConsumeBits(_mainTreeLengths[mainSymbol]);
 
             if (mainSymbol < NumChars)
             {
-                int mpos = windowPos & windowMask;
-                _window[mpos] = (byte)(mainSymbol);
-                if (mpos < 0x101)
-                    _window[mpos + windowSize] = (byte)(mainSymbol);
+                var maskedPos = windowPos & _windowMask;
+                WriteToWindow(maskedPos, (byte)mainSymbol);
                 windowPos++;
             }
             else
             {
-                int matchCode = mainSymbol - NumChars;
-                int lengthSlot = matchCode & 7;
-                int positionSlot = matchCode >> 3;
+                var matchCode = mainSymbol - NumChars;
+                var lengthSlot = matchCode & 7;
+                var positionSlot = matchCode >> 3;
 
                 if (lengthSlot == 7)
                 {
-                    int lengthSym = _lengthTreeTable[bitBuffer >> 24];
-                    if (lengthSym < 0)
-                    {
-                        uint lmask = 0x800000;
-                        while (lengthSym < 0)
-                        {
-                            int idx = ((bitBuffer & lmask) == 0)
-                                ? (-lengthSym) * 2
-                                : (-lengthSym) * 2 + 1;
-                            lengthSym = _lengthTreeTable[idx];
-                            lmask >>= 1;
-                        }
-                    }
-                    int lLen = _lengthTreeLengths[lengthSym];
-                    bitBuffer <<= (lLen & 0x1f);
-                    bitsRemain -= lLen;
-                    if (bitsRemain < 1)
-                    {
-                        uint w = (uint)(_inputBytes[inputPos] | (_inputBytes[inputPos + 1] << 8));
-                        bitBuffer |= w << ((-bitsRemain) & 0x1f);
-                        bitsRemain += 16;
-                        inputPos += 2;
-                    }
-                    lengthSlot = lengthSym + 7;
+                    var lengthSymbol = _bitstream.DecodeSymbol(_lengthTreeTable, LengthTreeTableBits);
+                    _bitstream.ConsumeBits(_lengthTreeLengths[lengthSymbol]);
+                    lengthSlot = lengthSymbol + 7;
                 }
 
-                int matchLength = lengthSlot + 2;
+                var matchLength = lengthSlot + 2;
 
                 int matchOffset;
                 if (positionSlot < 3)
                 {
-                    matchOffset = positionSlot switch { 0 => _r0, 1 => _r1, _ => _r2 };
+                    matchOffset = positionSlot switch { 0 => _repeatOffset0, 1 => _repeatOffset1, _ => _repeatOffset2 };
                     if (positionSlot != 0)
                     {
-                        if (positionSlot == 1) { _r1 = _r0; }
-                        else { _r2 = _r0; }
-                        _r0 = matchOffset;
+                        if (positionSlot == 1)
+                        {
+                            _repeatOffset1 = _repeatOffset0;
+                        }
+                        else
+                        {
+                            _repeatOffset2 = _repeatOffset0;
+                        }
+
+                        _repeatOffset0 = matchOffset;
                     }
                 }
                 else
@@ -1265,93 +795,48 @@ public sealed class LzxDecompressor : IDisposable
                     if (extraBitsCount >= 3)
                     {
                         // Read (extra - 3) bits from bitstream, then 3 from aligned tree
-                        // C: when extraBits == 3, verbatimBits = 0 (no bitstream read)
-                        int topBits = extraBitsCount - 3;
+                        var topBits = extraBitsCount - 3;
                         uint verbatimBits = 0;
                         if (topBits > 0)
                         {
-                            verbatimBits = bitBuffer >> ((32 - topBits) & 0x1f);
-                            bitBuffer <<= (topBits & 0x1f);
-                            bitsRemain -= topBits;
-                            if (bitsRemain < 1)
-                            {
-                                uint w = (uint)(_inputBytes[inputPos] | (_inputBytes[inputPos + 1] << 8));
-                                bitBuffer |= w << ((-bitsRemain) & 0x1f);
-                                bitsRemain += 16;
-                                inputPos += 2;
-                                if (bitsRemain < 1)
-                                {
-                                    w = (uint)(_inputBytes[inputPos] | (_inputBytes[inputPos + 1] << 8));
-                                    bitBuffer |= w << ((-bitsRemain) & 0x1f);
-                                    bitsRemain += 16;
-                                    inputPos += 2;
-                                }
-                            }
+                            verbatimBits = _bitstream.ReadBits(topBits);
                         }
 
                         // Aligned tree decode (C line 1157)
-                        int alignedSym = _alignedTreeTable[bitBuffer >> 25];
-                        int aLen = _alignedTreeLengths[alignedSym];
-                        bitBuffer <<= (aLen & 0x1f);
-                        bitsRemain -= aLen;
-                        if (bitsRemain < 1)
-                        {
-                            uint w = (uint)(_inputBytes[inputPos] | (_inputBytes[inputPos + 1] << 8));
-                            bitBuffer |= w << ((-bitsRemain) & 0x1f);
-                            bitsRemain += 16;
-                            inputPos += 2;
-                        }
+                        int alignedSymbol = _alignedTreeTable[_bitstream.BitBuffer >> 25];
+                        int alignedCodeLength = _alignedTreeLengths[alignedSymbol];
+                        _bitstream.ConsumeBits(alignedCodeLength);
 
-                        matchOffset = (int)(verbatimBits << 3) + alignedSym + PositionBase[positionSlot];
+                        matchOffset = (int)(verbatimBits << 3) + alignedSymbol + PositionBase[positionSlot];
                     }
                     else if (extraBitsCount > 0)
                     {
-                        uint val = bitBuffer >> ((32 - extraBitsCount) & 0x1f);
-                        bitBuffer <<= (extraBitsCount & 0x1f);
-                        bitsRemain -= extraBitsCount;
-                        if (bitsRemain < 1)
-                        {
-                            uint w = (uint)(_inputBytes[inputPos] | (_inputBytes[inputPos + 1] << 8));
-                            bitBuffer |= w << ((-bitsRemain) & 0x1f);
-                            bitsRemain += 16;
-                            inputPos += 2;
-                        }
-                        matchOffset = (int)val + PositionBase[positionSlot];
+                        var extraVal = _bitstream.ReadBits(extraBitsCount);
+                        matchOffset = (int)extraVal + PositionBase[positionSlot];
                     }
                     else
                     {
                         matchOffset = PositionBase[positionSlot];
                     }
 
-                    _r2 = _r1;
-                    _r1 = _r0;
-                    _r0 = matchOffset;
+                    _repeatOffset2 = _repeatOffset1;
+                    _repeatOffset1 = _repeatOffset0;
+                    _repeatOffset0 = matchOffset;
                 }
 
-                int srcPos = windowPos - matchOffset;
-                for (int i = 0; i < matchLength; i++)
+                var srcPos = windowPos - matchOffset;
+                for (var i = 0; i < matchLength; i++)
                 {
-                    int mpos = windowPos & windowMask;
-                    byte b = _window[(srcPos + i) & windowMask];
-                    _window[mpos] = b;
-                    if (mpos < 0x101)
-                        _window[mpos + windowSize] = b;
+                    var maskedPos = windowPos & _windowMask;
+                    var byteVal = _window[(srcPos + i) & _windowMask];
+                    WriteToWindow(maskedPos, byteVal);
                     windowPos++;
                 }
             }
         }
 
-        _bitBuffer = bitBuffer;
-        _bitsRemaining = bitsRemain;
-        _inputPosition = inputPos;
         _windowPosition = windowPos;
         return 0;
-
-    WRITEBACK_ERR:
-        _bitBuffer = bitBuffer;
-        _bitsRemaining = bitsRemain;
-        _inputPosition = inputPos;
-        return -1;
     }
 
     // ================================================================
@@ -1360,24 +845,19 @@ public sealed class LzxDecompressor : IDisposable
 
     private int DecompressUncompressedBlock(int count)
     {
-        if (_inputPosition + count > _inputEnd) return -1;
+        if (!_bitstream.HasAvailable(count)) return -1;
 
-        int windowPos = _windowPosition;
-        int windowSize = _windowSize;
-        int windowMask = _windowMask;
+        var windowPos = _windowPosition;
 
-        for (int i = 0; i < count; i++)
+        for (var i = 0; i < count; i++)
         {
-            byte b = _inputBytes[_inputPosition++];
-            int mpos = windowPos & windowMask;
-            _window[mpos] = b;
-            if (mpos < 0x101)
-                _window[mpos + windowSize] = b;
+            var maskedPos = windowPos & _windowMask;
+            WriteToWindow(maskedPos, _bitstream.ReadByte());
             windowPos++;
         }
 
         // C line 755: mask window position
-        _windowPosition = windowPos & windowMask;
+        _windowPosition = windowPos & _windowMask;
         return 0;
     }
 
@@ -1390,20 +870,24 @@ public sealed class LzxDecompressor : IDisposable
     {
         if (dataLength <= 10) return;
 
-        int curPos = _intelCurrentPosition;
-        int fileSize = _intelFileSize;
+        var curPos = _intelCurrentPosition;
+        var fileSize = _intelFileSize;
 
-        int endPos = dataLength - 10;
+        var endPos = dataLength - 10;
 
         // Sentinel approach: save byte at endPos, replace with 0xE8
-        byte savedByte = data[endPos];
+        var savedByte = data[endPos];
         data[endPos] = 0xE8;
 
-        int i = 0;
+        var i = 0;
         while (i < endPos)
         {
             // Scan for 0xE8
-            while (data[i] != 0xE8) { i++; curPos++; }
+            while (data[i] != 0xE8)
+            {
+                i++;
+                curPos++;
+            }
 
             if (i >= endPos)
             {
@@ -1412,7 +896,7 @@ public sealed class LzxDecompressor : IDisposable
             }
 
             // Read 32-bit LE value after E8
-            int absValue = data[i + 1] | (data[i + 2] << 8) |
+            var absValue = data[i + 1] | (data[i + 2] << 8) |
                            (data[i + 3] << 16) | (data[i + 4] << 24);
 
             if (absValue >= -curPos && absValue < fileSize)
@@ -1437,17 +921,5 @@ public sealed class LzxDecompressor : IDisposable
         data[endPos] = savedByte;
 
         _intelCurrentPosition += dataLength;
-    }
-
-    // ================================================================
-    // DISPOSE
-    // ================================================================
-
-    public void Dispose()
-    {
-        if (_window != null)
-        {
-            ArrayPool<byte>.Shared.Return(_window);
-        }
     }
 }

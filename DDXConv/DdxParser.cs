@@ -2,30 +2,6 @@ using DDXConv.Compression;
 
 namespace DDXConv;
 
-/// <summary>
-///     Parameters for extracting a region from an atlas.
-/// </summary>
-internal readonly record struct AtlasRegionParams(
-    int AtlasWidth,
-    int AtlasHeight,
-    int RegionX,
-    int RegionY,
-    int RegionWidth,
-    int RegionHeight,
-    uint Format);
-
-/// <summary>
-///     Parameters for unpacking a mip atlas.
-/// </summary>
-internal readonly record struct MipAtlasParams(
-    int AtlasWidth,
-    int AtlasHeight,
-    uint Format,
-    int MainWidth,
-    int MainHeight,
-    string? OutputPath = null,
-    bool SaveMips = false);
-
 public class DdxParser(bool verbose = false)
 {
     private const uint MAGIC_3XDO = 0x4F445833;
@@ -2240,5 +2216,4 @@ public class DdxParser(bool verbose = false)
         public byte[] Data { get; set; } = [];
         public int MipCount { get; set; }
     }
-
 }
