@@ -1949,7 +1949,7 @@ public class DdxParser(bool verbose = false)
 
         var mipPositions = GetMipPositions(width, height);
 
-        // Track which atlas blocks we've consumed we can pick remaining blocks if needed
+        // Track which atlas blocks we've consumed so we can pick remaining blocks if needed
         var usedBlocks = new bool[height / 4, width / 4];
 
         // If this atlas is used alongside a separate main surface chunk (two-chunk format),
@@ -2123,7 +2123,7 @@ public class DdxParser(bool verbose = false)
                 }
         }
 
-        // If we didn't extract the full mip tail, try to fill remaining bytes from unused atlas blocks
+        // If we didn't extract the full mip tail, fill remaining bytes from unused atlas blocks
         var mip0Size = TextureUtilities.CalculateMipSize(actualWidth, actualHeight, format);
         var desiredTailBytes = (int)totalSize - mip0Size; // bytes excluding main surface
 
@@ -2156,12 +2156,12 @@ public class DdxParser(bool verbose = false)
         }
 
         if (_verboseLogging)
-            Console.WriteLine($"UnpackMipAtlas: final extracted {outputOffset} bytes (buffer {output.Length} bytes)");
+            Console.WriteLine($"UnpackMipAtlas: final {outputOffset} bytes (buffer {output.Length} bytes)");
 
         // Trim to actual extracted size
-        var finalTrimmed = new byte[outputOffset];
-        Array.Copy(output, 0, finalTrimmed, 0, outputOffset);
-        return finalTrimmed;
+        var result = new byte[outputOffset];
+        Array.Copy(output, 0, result, 0, outputOffset);
+        return result;
     }
 
     /// <summary>
