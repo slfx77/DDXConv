@@ -133,14 +133,12 @@ public class DdxParser(bool verbose = false)
 
         if (version < 3) throw new NotSupportedException($"DDX version {version} is not supported. Need version >= 3");
 
-        // After reading version, we're at offset 0x09
-        // D3DTexture header (52 bytes) starts at offset 0x08 (1 byte back)
-        // We need to go back 1 byte and read 52 bytes to get to 0x3C
-        reader.BaseStream.Seek(-1, SeekOrigin.Current); // Go back 1 byte to 0x08
+        // D3DTexture header (52 bytes at offset 0x08) - back up 1 byte past the version field
+        reader.BaseStream.Seek(-1, SeekOrigin.Current);
 
-        var textureHeader = reader.ReadBytes(52); // Read 0x08 to 0x3C
+        var textureHeader = reader.ReadBytes(52); // 0x08-0x3C
 
-        // Now we're at 0x3C, skip to 0x44 (8 more bytes)
+        // Skip 8 bytes to reach 0x44
         reader.ReadBytes(8);
 
         // Parse the D3DTexture header to extract dimensions and format from Format dwords
@@ -612,7 +610,7 @@ public class DdxParser(bool verbose = false)
                         if (_verboseLogging)
                             Console.WriteLine($"Untiled chunks: {chunk1Untiled.Length} + {chunk2Untiled.Length} bytes");
 
-                        // Now we need to interleave these horizontally to form 256x256
+                        // Interleave chunks horizontally to form 256x256
                         // chunk1 is left 192 pixels, chunk2 is right 64 pixels
                         linearData = InterleaveHorizontalChunks(chunk1Untiled, chunk2Untiled, chunk1Width, chunk2Width,
                             chunkHeight, texture.ActualFormat);
@@ -1190,10 +1188,7 @@ public class DdxParser(bool verbose = false)
             Height = height
         };
 
-        // Our header starts at file offset 0x08
-        // The .old version read header from file 0x10 and read formatDwords from offset 8 within that header = file 0x18
-        // So we need to read formatDwords from file 0x18, which is offset 0x18-0x08 = 0x10 = 16 within our header
-        // Format dwords are stored as LITTLE-ENDIAN (already in Intel byte order), NO byte reversal needed
+        // Format dwords at header offset 16 (file offset 0x18), stored little-endian
 
         var formatDwords = new uint[6];
         for (var i = 0; i < 6; i++) formatDwords[i] = BitConverter.ToUInt32(header, 16 + i * 4);
