@@ -14,6 +14,9 @@ public class DdxParser(bool verbose = false)
 
     private ConversionOptions? _currentOptions;
 
+    /// <summary>
+    ///     Convert a DDX file on disk to a DDS file on disk.
+    /// </summary>
     public void ConvertDdxToDds(string inputPath, string outputPath, ConversionOptions options)
     {
         using var reader = new BinaryReader(File.OpenRead(inputPath));
@@ -21,26 +24,52 @@ public class DdxParser(bool verbose = false)
 
         if (magic == MAGIC_3XDR)
         {
-            // 3XDR is simpler than 3XDO: linear layout, mip0 only, just needs byte swap
-            Convert3XdrToDds(reader, outputPath, options);
+            var (texture, data) = Convert3Xdr(reader, options);
+            _headerWriter.WriteDdsFile(outputPath, texture, data);
+            if (_verboseLogging)
+                Console.WriteLine($"3XDR: Saved DDS to {outputPath} ({data.Length} bytes, {texture.MipLevels} mip(s))");
             return;
         }
 
         if (magic != MAGIC_3XDO) throw new InvalidDataException($"Unknown DDX magic: 0x{magic:X8}.");
 
-        ArgumentNullException.ThrowIfNull(outputPath);
-
-        ConvertDdxToDds(reader, outputPath, options, magic);
+        var (tex3Xdo, linearData) = ConvertDdx(reader, outputPath, options, magic);
+        _headerWriter.WriteDdsFile(outputPath, tex3Xdo, linearData);
     }
 
     /// <summary>
-    ///     Convert 3XDR (engine-tiled) format to DDS.
+    ///     Convert DDX data in memory to DDS data in memory.
+    ///     No temp files or disk I/O — the entire pipeline runs in memory.
+    /// </summary>
+    public byte[] ConvertDdxToDds(byte[] inputData, ConversionOptions? options = null)
+    {
+        using var ms = new MemoryStream(inputData);
+        using var reader = new BinaryReader(ms);
+        var magic = reader.ReadUInt32();
+
+        var opts = options ?? new ConversionOptions();
+
+        if (magic == MAGIC_3XDR)
+        {
+            var (texture, data) = Convert3Xdr(reader, opts);
+            return _headerWriter.BuildDdsBytes(texture, data);
+        }
+
+        if (magic != MAGIC_3XDO) throw new InvalidDataException($"Unknown DDX magic: 0x{magic:X8}.");
+
+        // Pass null outputPath — auxiliary file writes (raw dump, atlas) are skipped
+        var (tex, linearData) = ConvertDdx(reader, null, opts, magic);
+        return _headerWriter.BuildDdsBytes(tex, linearData);
+    }
+
+    /// <summary>
+    ///     Convert 3XDR (engine-tiled) format.
     ///     3XDR is simpler than 3XDO:
     ///     - Data is already linear (NOT Morton-swizzled)
     ///     - Contains only mip0 (no mip atlas)
     ///     - Only requires decompression + 16-bit byte swap for Xbox 360 big-endian
     /// </summary>
-    private void Convert3XdrToDds(BinaryReader reader, string outputPath, ConversionOptions options)
+    private (D3DTextureInfo Texture, byte[] Data) Convert3Xdr(BinaryReader reader, ConversionOptions options)
     {
         _currentOptions = options;
 
@@ -81,23 +110,21 @@ public class DdxParser(bool verbose = false)
         var untiled = TextureUtilities.UntileMacroBlocks(decompressed, width, height, blockSize);
         var textureData = TextureUtilities.SwapEndian16(untiled);
 
-        // 3XDR files contain only mip0 - no mip chain
-        var mipLevels = 1;
-
         // Update texture info
         texture.Width = width;
         texture.Height = height;
-        texture.MipLevels = (byte)mipLevels;
+        texture.MipLevels = 1;
 
-        // Write DDS file
-        _headerWriter.WriteDdsFile(outputPath, texture, textureData);
-
-        if (_verboseLogging)
-            Console.WriteLine($"3XDR: Saved DDS to {outputPath} ({textureData.Length} bytes, {mipLevels} mip(s))");
+        return (texture, textureData);
     }
 
-    // Some of this code build from analyzing NiXenonSourceTextureData::CreateFromDDXFile, some from file analysis
-    private void ConvertDdxToDds(BinaryReader reader, string outputPath, ConversionOptions options, uint magic)
+    /// <summary>
+    ///     Convert 3XDO (Morton-swizzled) format.
+    ///     When outputPath is null, auxiliary file writes (raw dump, atlas debug) are skipped.
+    /// </summary>
+    // Some of this code built from analyzing NiXenonSourceTextureData::CreateFromDDXFile, some from file analysis
+    private (D3DTextureInfo Texture, byte[] Data) ConvertDdx(
+        BinaryReader reader, string? outputPath, ConversionOptions options, uint magic)
     {
         _currentOptions = options;
 
@@ -200,7 +227,7 @@ public class DdxParser(bool verbose = false)
                 $"Combined {decompressedChunks.Count} chunks = {mainData.Length} bytes total (consumed {totalConsumed}/{compressedData.Length} compressed bytes)");
 
         // Save raw combined data for analysis (optional)
-        if (options != null && options.SaveRaw)
+        if (options.SaveRaw && outputPath != null)
         {
             var rawPath = outputPath.Replace(".dds", "_raw.bin");
             File.WriteAllBytes(rawPath, mainData);
@@ -245,8 +272,7 @@ public class DdxParser(bool verbose = false)
                 linearData = linearData[..expectedSize];
         }
 
-        // Convert to DDS and write
-        if (outputPath != null) _headerWriter.WriteDdsFile(outputPath, texture, linearData);
+        return (texture, linearData);
     }
 
     private byte[] DecompressXMemCompress(byte[] compressedData, uint uncompressedSize, out int bytesConsumed)

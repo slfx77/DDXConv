@@ -22,9 +22,6 @@ if (opts.Contains("--help") || opts.Contains("-h"))
     Console.WriteLine("Standard Options:");
     Console.WriteLine("  --pc-friendly, -pc   Produce PC-ready normal maps (batch conversion only!)");
     Console.WriteLine("  --regen-mips, -g     Regenerate mip levels from top level");
-    Console.WriteLine();
-    Console.WriteLine("Memory Dump Options (for textures carved from memory dumps):");
-    Console.WriteLine("  --memory, -m         Use memory texture parser (handles memory dump layouts)");
     Console.WriteLine("  --atlas, -a          Save full untiled atlas as separate DDS file");
     Console.WriteLine();
     Console.WriteLine("GUI Integration Options:");
@@ -44,7 +41,6 @@ if (opts.Contains("--help") || opts.Contains("-h"))
 var inputPath = positional[0];
 var pcFriendly = opts.Contains("--pc-friendly") || opts.Contains("-pc");
 var regenMips = opts.Contains("--regen-mips") || opts.Contains("-g");
-var memoryMode = opts.Contains("--memory") || opts.Contains("-m");
 var saveAtlas = opts.Contains("--atlas") || opts.Contains("-a");
 var saveRaw = opts.Contains("--raw") || opts.Contains("-r");
 var saveMips = opts.Contains("--save-mips");
@@ -101,56 +97,20 @@ if (Directory.Exists(inputPath))
 
         try
         {
-            if (memoryMode)
-            {
-                // Use MemoryTextureParser for textures carved from memory dumps
-                var memoryParser = new MemoryTextureParser(verbose);
-                var result =
-                    memoryParser.ConvertFromMemory(ddxFile, outputBatchPath, saveAtlas, saveRaw);
-
-                if (result.Success)
+            var parser = new DdxParser(verbose);
+            parser.ConvertDdxToDds(ddxFile, outputBatchPath,
+                new ConversionOptions
                 {
-                    Interlocked.Increment(ref successes);
-                    if (verbose) Console.WriteLine($"Converted {ddxFile} to {outputBatchPath}");
-                    WriteProgress("OK", ddxFile);
-                }
-                else
-                {
-                    Interlocked.Increment(ref errors);
-                    if (verbose) Console.WriteLine($"Error converting {ddxFile}: {result.Error}");
-                    WriteProgress("FAIL", ddxFile, result.Error);
-                    lock (failed)
-                    {
-                        var error = result.Error ?? "Unknown error";
-                        if (!failed.ContainsKey(error))
-                            failed[error] = new List<string>();
-                        failed[error].Add(ddxFile);
-                    }
-
-                    return;
-                }
-
-                if (!verbose && !progressMode)
-                    Console.Write($"\rConverted {successes} / {ddxFiles.Length} files, {errors} failed...");
-            }
-            else
-            {
-                // Use standard DdxParser for file-based .ddx files
-                var parser = new DdxParser(verbose);
-                parser.ConvertDdxToDds(ddxFile, outputBatchPath,
-                    new ConversionOptions
-                    {
-                        SaveAtlas = saveAtlas,
-                        SaveRaw = saveRaw,
-                        SaveMips = saveMips,
-                        NoUntileAtlas = noUntileAtlas,
-                        NoUntile = noUntile,
-                        SkipEndianSwap = skipEndianSwap
-                    });
-                Interlocked.Increment(ref successes);
-                if (verbose) Console.WriteLine($"Converted {ddxFile} to {outputBatchPath}");
-                WriteProgress("OK", ddxFile);
-            }
+                    SaveAtlas = saveAtlas,
+                    SaveRaw = saveRaw,
+                    SaveMips = saveMips,
+                    NoUntileAtlas = noUntileAtlas,
+                    NoUntile = noUntile,
+                    SkipEndianSwap = skipEndianSwap
+                });
+            Interlocked.Increment(ref successes);
+            if (verbose) Console.WriteLine($"Converted {ddxFile} to {outputBatchPath}");
+            WriteProgress("OK", ddxFile);
 
             if (regenMips) DdsPostProcessor.RegenerateMips(outputBatchPath);
         }
@@ -225,40 +185,18 @@ var outputPath = positional.Count > 1 ? positional[1] : Path.ChangeExtension(inp
 
 try
 {
-    if (memoryMode)
-    {
-        // Use MemoryTextureParser for textures carved from memory dumps
-        var memoryParser = new MemoryTextureParser(verbose);
-        var result =
-            memoryParser.ConvertFromMemory(inputPath, outputPath, saveAtlas, saveRaw);
-
-        if (result.Success)
+    var parser = new DdxParser(verbose);
+    parser.ConvertDdxToDds(inputPath, outputPath,
+        new ConversionOptions
         {
-            Console.WriteLine($"Successfully converted memory texture {inputPath} to {outputPath}");
-            if (result.AtlasData != null && saveAtlas) Console.WriteLine($"  Atlas saved: {result.AtlasPath}");
-        }
-        else
-        {
-            Console.WriteLine($"Conversion failed: {result.Error}");
-            return;
-        }
-    }
-    else
-    {
-        // Use standard DdxParser for file-based .ddx files
-        var parser = new DdxParser(verbose);
-        parser.ConvertDdxToDds(inputPath, outputPath,
-            new ConversionOptions
-            {
-                SaveAtlas = saveAtlas,
-                SaveRaw = saveRaw,
-                SaveMips = saveMips,
-                NoUntileAtlas = noUntileAtlas,
-                NoUntile = noUntile,
-                SkipEndianSwap = skipEndianSwap
-            });
-        Console.WriteLine($"Successfully converted {inputPath} to {outputPath}");
-    }
+            SaveAtlas = saveAtlas,
+            SaveRaw = saveRaw,
+            SaveMips = saveMips,
+            NoUntileAtlas = noUntileAtlas,
+            NoUntile = noUntile,
+            SkipEndianSwap = skipEndianSwap
+        });
+    Console.WriteLine($"Successfully converted {inputPath} to {outputPath}");
 
     // Regenerate mips unless disabled or if PC-friendly normal map case (no reason to add another re-encode since normal merge regenerates mips)
     if (!regenMips ||

@@ -109,11 +109,20 @@ internal sealed class DdxHeaderWriter(bool verboseLogging)
                 $"Writing DDS: Format=0x{texture.Format:X8}, ActualFormat=0x{texture.ActualFormat:X2}, DataFormat=0x{texture.DataFormat:X2}, MipLevels={texture.MipLevels}");
 
         using var writer = new BinaryWriter(File.Create(outputPath));
-        // Write DDS header
         WriteDdsHeader(writer, texture);
-
-        // Write texture data
         writer.Write(mainData);
+    }
+
+    /// <summary>
+    ///     Build a complete DDS file in memory (header + texture data).
+    /// </summary>
+    internal byte[] BuildDdsBytes(D3DTextureInfo texture, byte[] mainData)
+    {
+        using var ms = new MemoryStream(128 + mainData.Length);
+        using var writer = new BinaryWriter(ms);
+        WriteDdsHeader(writer, texture);
+        writer.Write(mainData);
+        return ms.ToArray();
     }
 
     private void WriteDdsHeader(BinaryWriter writer, D3DTextureInfo texture)

@@ -34,7 +34,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         D3DTextureInfo texture,
         int width, int height,
         uint mainSurfaceSize,
-        string outputPath,
+        string? outputPath,
         ConversionOptions? options,
         uint magic)
     {
@@ -94,7 +94,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         D3DTextureInfo texture,
         int width, int height,
         uint chunk1Size, uint chunk2Size,
-        string outputPath,
+        string? outputPath,
         ConversionOptions? options,
         uint magic)
     {
@@ -197,7 +197,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         if (_verboseLogging)
             Console.WriteLine($"Untiled both chunks to {untiledAtlas.Length} and {untiledMain.Length} bytes");
 
-        if (options != null && options.SaveAtlas)
+        if (options != null && options.SaveAtlas && outputPath != null)
         {
             var atlasPath = outputPath.Replace(".dds", "_atlas.dds");
             var atlasTexture = new D3DTextureInfo
@@ -244,7 +244,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         D3DTextureInfo texture,
         int width, int height,
         uint mainSurfaceSize,
-        string outputPath,
+        string? outputPath,
         ConversionOptions? options)
     {
         byte[] linearData = [];
@@ -294,7 +294,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         D3DTextureInfo texture,
         int width, int height,
         uint mainSurfaceSize,
-        string outputPath,
+        string? outputPath,
         ConversionOptions? options)
     {
         if (_verboseLogging) Console.WriteLine($"Detected extra data: {mainData.Length} > {mainSurfaceSize}");
@@ -374,7 +374,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
 
     private byte[] ProcessSingleChunkDoubleSize(
         byte[] mainData, D3DTextureInfo texture, int width, int height, uint mainSurfaceSize,
-        string outputPath, ConversionOptions? options)
+        string? outputPath, ConversionOptions? options)
     {
         var mainSurfaceBytes = (int)mainSurfaceSize;
 
@@ -421,7 +421,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
 
     private byte[] ProcessSmallTextureHorizontalSplit(
         byte[] mainData, D3DTextureInfo texture, int width, int height, uint mainSurfaceSize,
-        string outputPath, ConversionOptions? options)
+        string? outputPath, ConversionOptions? options)
     {
         if (_verboseLogging) Console.WriteLine("Attempting horizontal split for small texture");
 
@@ -504,7 +504,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
 
     private byte[] ProcessUndersizedSingleChunk(
         byte[] mainData, D3DTextureInfo texture, int width, int height,
-        uint mainSurfaceSize, string outputPath, ConversionOptions? options)
+        uint mainSurfaceSize, string? outputPath, ConversionOptions? options)
     {
         if (_verboseLogging)
             Console.WriteLine(
@@ -527,7 +527,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
 
     private byte[] ProcessAtlasOnlyData(
         byte[] mainData, D3DTextureInfo texture, int width, int height,
-        string outputPath, ConversionOptions? options)
+        string? outputPath, ConversionOptions? options)
     {
         if (_verboseLogging)
             Console.WriteLine(
@@ -693,7 +693,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
 
     private byte[] ProcessDoubleMainSize(
         byte[] mainData, D3DTextureInfo texture, int width, int height,
-        uint mainSurfaceSize, string outputPath, ConversionOptions? options)
+        uint mainSurfaceSize, string? outputPath, ConversionOptions? options)
     {
         var halfWidth = width / 2;
         var halfHeight = height / 2;
@@ -763,7 +763,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
 
     private byte[] ProcessTwoSquareChunks(
         byte[] mainData, D3DTextureInfo texture, int squareSize, int halfSize,
-        string outputPath, ConversionOptions? options)
+        string? outputPath, ConversionOptions? options)
     {
         if (_verboseLogging)
             Console.WriteLine(
@@ -804,7 +804,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
 
     private byte[] ProcessExactSizeMatch(
         byte[] mainData, D3DTextureInfo texture, int width, int height,
-        uint mainSurfaceSize, string outputPath, ConversionOptions? options)
+        uint mainSurfaceSize, string? outputPath, ConversionOptions? options)
     {
         // Check for 128x128 texture with mip atlas
         var atlasSize128 = 24576;
@@ -825,9 +825,12 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
             if (_verboseLogging) Console.WriteLine($"Untiled atlas (256x192) to {untiledAtlas.Length} bytes");
             if (_verboseLogging) Console.WriteLine($"Untiled main (128x128) to {untiledMain.Length} bytes");
 
-            var atlasPath = outputPath.Replace(".dds", "_atlas_untiled.bin");
-            File.WriteAllBytes(atlasPath, untiledAtlas);
-            if (_verboseLogging) Console.WriteLine($"Saved untiled atlas to {atlasPath}");
+            if (outputPath != null)
+            {
+                var atlasPath = outputPath.Replace(".dds", "_atlas_untiled.bin");
+                File.WriteAllBytes(atlasPath, untiledAtlas);
+                if (_verboseLogging) Console.WriteLine($"Saved untiled atlas to {atlasPath}");
+            }
 
             var mips = UnpackMipAtlas(untiledAtlas, new MipAtlasParams(
                 256, 192, texture.ActualFormat,
