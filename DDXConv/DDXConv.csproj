@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="DDXConv.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="BCnEncoder.Net.ImageSharp" Version="1.1.2" />
     <!-- Override transitive dependency to fix CVE-2025-54575 vulnerability -->
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />

@@ -105,10 +105,18 @@ public class DdxParser(bool verbose = false)
             Console.WriteLine(
                 $"3XDR: Decompressed {consumed} bytes to {decompressed.Length} bytes (expected mip0={mip0Size})");
 
-        // 3XDR data uses Xbox 360 2x2 macro block tiling and big-endian byte order
-        var blockSize = TextureUtilities.GetBlockSize(texture.ActualFormat);
-        var untiled = TextureUtilities.UntileMacroBlocks(decompressed, width, height, blockSize);
-        var textureData = TextureUtilities.SwapEndian16(untiled);
+        // 3XDR data uses Xbox 360 GPU block-level tiling and big-endian byte order
+        byte[] textureData;
+        if (options.NoUntile)
+        {
+            textureData = options.SkipEndianSwap ? decompressed : TextureUtilities.SwapEndian16(decompressed);
+        }
+        else
+        {
+            var blockSize = TextureUtilities.GetBlockSize(texture.ActualFormat);
+            var swapEndian = !options.SkipEndianSwap;
+            textureData = TextureUtilities.UntileMacroBlocks(decompressed, width, height, blockSize, swapEndian);
+        }
 
         // Update texture info
         texture.Width = width;
@@ -214,6 +222,12 @@ public class DdxParser(bool verbose = false)
 
         // Combine all decompressed chunks
         var totalDecompressed = decompressedChunks.Sum(c => c.Length);
+
+        if (totalDecompressed == 0)
+            throw new InvalidOperationException(
+                $"LZX decompression produced 0 bytes from {compressedData.Length} bytes of compressed data " +
+                $"(expected ~{atlasSize} bytes for {width}x{height} texture)");
+
         mainData = new byte[totalDecompressed];
         var writeOffset = 0;
         for (var i = 0; i < decompressedChunks.Count; i++)
@@ -287,7 +301,24 @@ public class DdxParser(bool verbose = false)
             decompressedData, 0, ref decompressedLen);
 
         if (result != 0)
+        {
+            // When carving DDX from memory dumps, trailing garbage after the real LZX data
+            // can cause decompression to fail mid-stream. If we already decompressed some
+            // valid chunks before hitting garbage, return the partial result — the output
+            // only contains data from fully-decompressed chunks.
+            if (decompressedLen > 0)
+            {
+                if (_verboseLogging)
+                    Console.WriteLine(
+                        $"LZX partial decompression: got {decompressedLen} bytes from {compressedLen} consumed before failure");
+
+                bytesConsumed = compressedLen;
+                Array.Resize(ref decompressedData, decompressedLen);
+                return decompressedData;
+            }
+
             throw new InvalidOperationException($"LzxDecompressor decompression failed: {result}");
+        }
 
         if (_verboseLogging) Console.WriteLine($"Decompressed {compressedLen} -> {decompressedLen} bytes");
 

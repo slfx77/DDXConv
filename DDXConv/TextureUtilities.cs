@@ -137,6 +137,24 @@ public static class TextureUtilities
     }
 
     /// <summary>
+    ///     Calculate the GPU tile-aligned size of a single mip level in bytes.
+    ///     Xbox 360 GPU aligns both block dimensions to multiples of 32 (128 texels).
+    /// </summary>
+    /// <remarks>
+    ///     From Xenia's CalculateExtent: guest textures round block_pitch_h and block_pitch_v
+    ///     up to multiples of 32 blocks. This determines the actual GPU memory footprint.
+    /// </remarks>
+    public static int CalculateTiledMipSize(int width, int height, uint format)
+    {
+        var blockSize = GetBlockSize(format);
+        var blocksW = Math.Max(1, (width + 3) / 4);
+        var blocksH = Math.Max(1, (height + 3) / 4);
+        var tiledBlocksW = (blocksW + 31) & ~31; // round up to multiple of 32
+        var tiledBlocksH = (blocksH + 31) & ~31;
+        return tiledBlocksW * tiledBlocksH * blockSize;
+    }
+
+    /// <summary>
     ///     Calculate total size of a mip chain from given dimensions down to smallest mip.
     /// </summary>
     public static uint CalculateMainDataSize(uint width, uint height, uint format, uint mipLevels)
@@ -280,18 +298,198 @@ public static class TextureUtilities
 
     #endregion
 
+    #region XG Mip Atlas Layout
+
+    /// <summary>
+    ///     Compute Xbox 360 mip atlas layout using the XG algorithm decompiled from the Fallout NV
+    ///     MemDebug XEX. Returns (x, y, w, h) positions in DXT block coordinates for each mip level.
+    /// </summary>
+    /// <remarks>
+    ///     Non-tail mips use a recursive L-shaped placement verified against hard-coded tables:
+    ///     - Square (w==h): mip1 RIGHT, mip2 BELOW, recurse in corner
+    ///     - Wider (w&gt;h): mip1 BELOW, mip2 RIGHT of mip1, recurse in corner
+    ///     Tail mips use the D3D::GetMipTailLevelOffsetCoords algorithm from the Xbox 360 SDK.
+    ///     The tail base level is computed via XGGetMipTailBaseLevel: max(0, floor(log2(min(w,h))) - 4).
+    /// </remarks>
+    /// <param name="baseWidth">Base texture width in pixels.</param>
+    /// <param name="baseHeight">Base texture height in pixels.</param>
+    /// <param name="startLevel">First mip level in the atlas (0 = all mips, 1 = skip base for actualFromMain).</param>
+    public static (int x, int y, int w, int h)[] ComputeXgMipLayout(
+        int baseWidth, int baseHeight, int startLevel = 0)
+    {
+        const int blockPx = 4; // DXT block = 4x4 pixels
+
+        var tailBase = ComputeXgTailBaseLevel(baseWidth, baseHeight);
+        var totalLevels = (int)CalculateMipLevels((uint)baseWidth, (uint)baseHeight);
+
+        var positions = new List<(int x, int y, int w, int h)>();
+
+        // Collect non-tail mip block dimensions
+        var nonTailMips = new List<(int w, int h)>();
+        for (var level = startLevel; level < Math.Min(tailBase, totalLevels); level++)
+        {
+            var mipW = Math.Max(blockPx, baseWidth >> level);
+            var mipH = Math.Max(blockPx, baseHeight >> level);
+            nonTailMips.Add((mipW / blockPx, mipH / blockPx));
+        }
+
+        // Place non-tail mips using recursive L-shape
+        var (tailX, tailY) = PlaceNonTailMipsRecursive(nonTailMips, 0, 0, 0, positions);
+
+        // Place tail mips using D3D::GetMipTailLevelOffsetCoords
+        if (tailBase < totalLevels)
+        {
+            var tailW = Math.Max(1, baseWidth >> tailBase);
+            var tailH = Math.Max(1, baseHeight >> tailBase);
+
+            for (var level = tailBase; level < totalLevels; level++)
+            {
+                var levelInTail = level - tailBase;
+                var (tx, ty) = ComputeTailLevelOffset(levelInTail, tailW, tailH);
+
+                var mipW = Math.Max(1, baseWidth >> level);
+                var mipH = Math.Max(1, baseHeight >> level);
+                var wBlocks = Math.Max(1, (mipW + blockPx - 1) / blockPx);
+                var hBlocks = Math.Max(1, (mipH + blockPx - 1) / blockPx);
+
+                positions.Add((tailX + tx, tailY + ty, wBlocks, hBlocks));
+            }
+        }
+
+        return positions.ToArray();
+    }
+
+    /// <summary>
+    ///     Compute the mip tail base level using the XGGetMipTailBaseLevel formula.
+    ///     For 2D DXT textures: max(0, floor(log2(min(width, height))) - 4).
+    ///     The tail starts when the smaller dimension reaches 16 texels (4 DXT blocks).
+    /// </summary>
+    internal static int ComputeXgTailBaseLevel(int width, int height)
+    {
+        var minDim = Math.Min(width, height);
+        if (minDim <= 1) return 0;
+        var log2Min = 31 - int.LeadingZeroCount(minDim);
+        return Math.Max(0, log2Min - 4);
+    }
+
+    /// <summary>
+    ///     Compute the (x, y) block offset of a mip level within the mip tail tile.
+    ///     Based on D3D::GetMipTailLevelOffsetCoords decompiled from Fallout NV MemDebug XEX.
+    /// </summary>
+    /// <remarks>
+    ///     The mip tail is a 32×32 texel (8×8 block) GPU tile. Mips are packed at fixed offsets:
+    ///     For square DXT tail: level 0→(4,0), 1→(2,0), 2→(1,0), 3→(0,2), 4→(0,1).
+    ///     For non-square: the wider dimension determines which axis gets the primary offsets.
+    /// </remarks>
+    public static (int xBlocks, int yBlocks) ComputeTailLevelOffset(
+        int levelInTail, int tailBaseWidth, int tailBaseHeight)
+    {
+        const int blockW = 4, blockH = 4;
+
+        int x = 0, y = 0;
+
+        // Determine which dimension is wider using ceil_log2 comparison
+        // matches: -(uint)(0x20U - LZCOUNT(param_3 + -1) < 0x20U - LZCOUNT(param_2 + -1)) & 1
+        var widthIsWider = CeilLog2(tailBaseHeight) < CeilLog2(tailBaseWidth);
+
+        if (levelInTail < 3)
+        {
+            // First 3 tail levels: fixed 16-texel offsets in the primary dimension
+            var offset = 16 >> levelInTail;
+            if (!widthIsWider)
+                x = offset;
+            else
+                y = offset;
+        }
+        else
+        {
+            // Levels 3+: offset in the flipped (secondary) dimension
+            var w = NextPowerOf2(tailBaseWidth);
+            var h = NextPowerOf2(tailBaseHeight);
+
+            var dimValue = !widthIsWider ? h : w;
+            var shifted = dimValue >> (levelInTail - 2);
+
+            if (!widthIsWider)
+                y = shifted;
+            else
+                x = shifted;
+        }
+
+        return (x / blockW, y / blockH);
+    }
+
+    private static (int tailX, int tailY) PlaceNonTailMipsRecursive(
+        List<(int w, int h)> mips, int idx, int ox, int oy,
+        List<(int x, int y, int w, int h)> positions)
+    {
+        if (idx >= mips.Count)
+            return (ox, oy);
+
+        var (w0, h0) = mips[idx];
+        positions.Add((ox, oy, w0, h0));
+
+        if (idx + 1 >= mips.Count)
+            return (ox + w0, oy + h0);
+
+        var (w1, h1) = mips[idx + 1];
+
+        if (w0 > h0)
+        {
+            // Wider: mip1 BELOW entry0, mip2 RIGHT of mip1
+            positions.Add((ox, oy + h0, w1, h1));
+            if (idx + 2 < mips.Count)
+            {
+                var (w2, h2) = mips[idx + 2];
+                positions.Add((ox + w1, oy + h0, w2, h2));
+            }
+        }
+        else
+        {
+            // Square or taller: mip1 RIGHT of entry0, mip2 BELOW entry0
+            positions.Add((ox + w0, oy, w1, h1));
+            if (idx + 2 < mips.Count)
+            {
+                var (w2, h2) = mips[idx + 2];
+                positions.Add((ox, oy + h0, w2, h2));
+            }
+        }
+
+        // Recurse in corner quadrant for remaining non-tail mips
+        return PlaceNonTailMipsRecursive(mips, idx + 3, ox + w0, oy + h0, positions);
+    }
+
+    private static int CeilLog2(int value)
+    {
+        if (value <= 1) return 0;
+        return 32 - int.LeadingZeroCount(value - 1);
+    }
+
+    private static int NextPowerOf2(int value)
+    {
+        if (value <= 1) return 1;
+        return 1 << CeilLog2(value);
+    }
+
+    #endregion
+
     #region Tiling — 3XDR Macro-Block
 
     /// <summary>
-    ///     Untile 3XDR macro-block tiled data to linear layout.
-    ///     Does NOT perform endian swap — caller should use <see cref="SwapEndian16" /> separately.
+    ///     Untile 3XDR macro-block tiled data to linear layout with optional endian swap.
+    ///     Uses the Xbox 360 GPU block-level tiling, which rearranges DXT block coordinates
+    ///     via a specific bit permutation derived from empirical analysis.
     /// </summary>
     /// <remarks>
-    ///     The 3XDR tiling pattern operates on 8x2 block groups with this transformation:
-    ///     Xbox row 0: X 0 1 2 3 4 5 6 7 → PC (X,Y): (0,0)(1,0)(0,1)(1,1)(2,0)(3,0)(2,1)(3,1)
-    ///     Xbox row 1: X 0 1 2 3 4 5 6 7 → PC (X,Y): (4,0)(5,0)(4,1)(5,1)(6,0)(7,0)(6,1)(7,1)
+    ///     The Xbox 360 GPU tiles DXT blocks using a bit-level coordinate rearrangement.
+    ///     For block coordinates (x, y) with n-bit values, the tiled-to-linear mapping is:
+    ///       px = x[2] x[3] y[1] x[1]  (for 4-bit coordinates)
+    ///       py = y[3] y[2] y[0] x[0]
+    ///     This was derived by matching 44 uniquely-identifiable DXT5 color blocks between
+    ///     Xbox 360 3XDR output and PC reference DDS files, verified bijective on 16x16 grids.
     /// </remarks>
-    public static byte[] UntileMacroBlocks(byte[] src, int width, int height, int blockSize)
+    public static byte[] UntileMacroBlocks(byte[] src, int width, int height, int blockSize,
+        bool swapEndian = false)
     {
         var blocksX = Math.Max(1, (width + 3) / 4);
         var blocksY = Math.Max(1, (height + 3) / 4);
@@ -299,26 +497,19 @@ public static class TextureUtilities
 
         var dst = new byte[mipSize];
 
-        // For very small textures (< 8 blocks in X or < 2 in Y), no tiling needed
-        if (blocksY < 2 || blocksX < 8)
-        {
-            Array.Copy(src, dst, Math.Min(src.Length, mipSize));
-            return dst;
-        }
-
         for (var xboxIdx = 0; xboxIdx < blocksX * blocksY; xboxIdx++)
         {
             var xboxX = xboxIdx % blocksX;
             var xboxY = xboxIdx / blocksX;
 
-            var pcIdx = GetPcBlockIndex(xboxX, xboxY, blocksX);
+            var pcIdx = GetPcBlockIndex(xboxX, xboxY, blocksX, blockSize);
 
             var srcOffset = xboxIdx * blockSize;
             var dstOffset = pcIdx * blockSize;
 
             if (srcOffset + blockSize <= src.Length && dstOffset + blockSize <= dst.Length)
             {
-                Array.Copy(src, srcOffset, dst, dstOffset, blockSize);
+                CopyBlock(src, srcOffset, dst, dstOffset, blockSize, swapEndian);
             }
         }
 
@@ -326,23 +517,35 @@ public static class TextureUtilities
     }
 
     /// <summary>
-    ///     Calculate PC block index from Xbox block position within 8x2 macro-block groups.
+    ///     Calculate PC (linear) block index from Xbox (tiled) block coordinates.
+    ///     The tiling pattern depends on block size: DXT1 (8B) uses 8×2 groups,
+    ///     DXT5/ATI2 (16B) uses a wider bit permutation on 4-bit coordinates.
     /// </summary>
-    private static int GetPcBlockIndex(int xboxX, int xboxY, int blocksX)
+    internal static int GetPcBlockIndex(int xboxX, int xboxY, int blocksX, int blockSize = 16)
     {
-        var groupX = xboxX / 8;
-        var groupY = xboxY / 2;
+        if (blockSize <= 8)
+        {
+            // DXT1/ATI1 (8 bytes/block): 8×2 macro-block tiling
+            var groupX = xboxX / 8;
+            var groupY = xboxY / 2;
+            var localX = xboxX % 8;
+            var localY = xboxY % 2;
+            var pcLocalX = (localY << 2) | ((localX >> 2) << 1) | (localX & 1);
+            var pcLocalY = (localX >> 1) & 1;
+            var pcX = groupX * 8 + pcLocalX;
+            var pcY = groupY * 2 + pcLocalY;
+            return pcY * blocksX + pcX;
+        }
 
-        var localX = xboxX % 8;
-        var localY = xboxY % 2;
-
-        var pcLocalX = (localY << 2) | ((localX >> 2) << 1) | (localX & 1);
-        var pcLocalY = (localX >> 1) & 1;
-
-        var pcX = groupX * 8 + pcLocalX;
-        var pcY = groupY * 2 + pcLocalY;
-
-        return pcY * blocksX + pcX;
+        // DXT5/DXT3/ATI2 (16 bytes/block): bit-level coordinate permutation
+        // Low 4 bits: px = x[2] x[3] y[1] x[1], py = y[3..2] y[0] x[0]
+        // Higher bits pass through unchanged
+        var pcX16 = (xboxX & ~0xF) |
+                    (((xboxX >> 2) & 1) << 3) | (((xboxX >> 3) & 1) << 2) |
+                    (((xboxY >> 1) & 1) << 1) | ((xboxX >> 1) & 1);
+        var pcY16 = (xboxY & ~3) |
+                    ((xboxY & 1) << 1) | (xboxX & 1);
+        return pcY16 * blocksX + pcX16;
     }
 
     #endregion
