@@ -345,56 +345,50 @@ internal sealed class DdxMipAtlasUnpacker(bool verboseLogging)
             Console.WriteLine(
                 $"UnpackMipAtlas: width={width}, height={height}, actualTexture={actualWidth}x{actualHeight}, using {GetMipLayoutName(width, height)} mip layout");
 
-        // Special handling for 1024x1024 atlas with split mips
-        if (width == 1024 && height == 1024)
-            return Unpack1024x1024Atlas(atlasData, output, outputOffset, atlasWidthInBlocks,
-                blockSize, format, saveMips, outputPath);
+        var atlasWBlocks = width / 4;
+        var atlasHBlocks = height / 4;
 
-        var mipPositions = GetMipPositions(width, height);
+        (int x, int y, int w, int h)[] mipPositions;
 
-        // Track which atlas blocks we've consumed so we can pick remaining blocks if needed
-        var usedBlocks = new bool[height / 4, width / 4];
-
-        // If this atlas is used alongside a separate main surface chunk (two-chunk format),
-        // adjust static mappings: remove any mapping that corresponds to the main-size mip
         if (actualFromMain)
         {
-            var list = new List<(int x, int y, int w, int h)>(mipPositions);
-            var mainBlocksW = Math.Max(1, mainWidth / 4);
-            var mainBlocksH = Math.Max(1, mainHeight / 4);
-            for (var i = 0; i < list.Count; i++)
-                if (list[i].w == mainBlocksW && list[i].h == mainBlocksH)
-                {
-                    if (_verboseLogging)
-                        Console.WriteLine(
-                            "UnpackMipAtlas: removing top-level mapping for main-size mip since main surface is separate");
+            // XG-computed layout for in-memory two-chunk atlas (handles all texture sizes)
+            mipPositions = TextureUtilities.ComputeXgMipLayout(mainWidth, mainHeight, startLevel: 1);
 
-                    list.RemoveAt(i);
+            if (_verboseLogging)
+                Console.WriteLine(
+                    $"UnpackMipAtlas: XG-computed layout for {mainWidth}x{mainHeight} ({mipPositions.Length} mips)");
+        }
+        else
+        {
+            // Special handling for 1024x1024 atlas with split mips (on-disk DDX)
+            if (width == 1024 && height == 1024)
+                return Unpack1024x1024Atlas(atlasData, output, outputOffset, atlasWidthInBlocks,
+                    blockSize, format, saveMips, outputPath);
+
+            mipPositions = GetMipPositions(width, height);
+
+            // If our hard-coded mipPositions don't fit in the atlas, fall back to dynamic packing
+            var mappingFits = true;
+            foreach (var (x, y, w, h) in mipPositions)
+                if (x + w > atlasWBlocks || y + h > atlasHBlocks)
+                {
+                    mappingFits = false;
                     break;
                 }
 
-            if (list.Count < mipPositions.Length) mipPositions = [.. list];
-        }
-
-        // If our hard-coded mipPositions don't fit in the atlas, fall back to dynamic packing
-        var atlasWBlocks = width / 4;
-        var atlasHBlocks = height / 4;
-        var mappingFits = true;
-        foreach (var (x, y, w, h) in mipPositions)
-            if (x + w > atlasWBlocks || y + h > atlasHBlocks)
+            if (!mappingFits)
             {
-                mappingFits = false;
-                break;
+                if (_verboseLogging)
+                    Console.WriteLine("UnpackMipAtlas: default layout doesn't fit atlas - using dynamic packing");
+
+                mipPositions = BuildDynamicMipPositions(actualFromMain, width, height, mainWidth, mainHeight,
+                    atlasWBlocks, atlasHBlocks);
             }
-
-        if (!mappingFits)
-        {
-            if (_verboseLogging)
-                Console.WriteLine("UnpackMipAtlas: default layout doesn't fit atlas - using dynamic packing");
-
-            mipPositions = BuildDynamicMipPositions(actualFromMain, width, height, mainWidth, mainHeight,
-                atlasWBlocks, atlasHBlocks);
         }
+
+        // Track which atlas blocks we've consumed so we can pick remaining blocks if needed
+        var usedBlocks = new bool[atlasHBlocks, atlasWBlocks];
 
         for (var mipLevel = 0; mipLevel < mipPositions.Length; mipLevel++)
         {

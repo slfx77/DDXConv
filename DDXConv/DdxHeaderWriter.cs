@@ -110,7 +110,7 @@ internal sealed class DdxHeaderWriter(bool verboseLogging)
 
         using var writer = new BinaryWriter(File.Create(outputPath));
         WriteDdsHeader(writer, texture);
-        writer.Write(mainData);
+        WriteDdsData(writer, texture, mainData);
     }
 
     /// <summary>
@@ -118,11 +118,28 @@ internal sealed class DdxHeaderWriter(bool verboseLogging)
     /// </summary>
     internal byte[] BuildDdsBytes(D3DTextureInfo texture, byte[] mainData)
     {
-        using var ms = new MemoryStream(128 + mainData.Length);
+        var expectedSize = CalculatePitchOrLinearSize(texture.Width, texture.Height, texture.ActualFormat);
+        using var ms = new MemoryStream(128 + (int)Math.Max(mainData.Length, expectedSize));
         using var writer = new BinaryWriter(ms);
         WriteDdsHeader(writer, texture);
-        writer.Write(mainData);
+        WriteDdsData(writer, texture, mainData);
         return ms.ToArray();
+    }
+
+    /// <summary>
+    ///     Write pixel data, zero-padding to the declared size if truncated.
+    /// </summary>
+    private static void WriteDdsData(BinaryWriter writer, D3DTextureInfo texture, byte[] mainData)
+    {
+        writer.Write(mainData);
+
+        // Pad truncated data to declared size so tools like GIMP can open the file
+        var expectedSize = CalculatePitchOrLinearSize(texture.Width, texture.Height, texture.ActualFormat);
+        if (mainData.Length < expectedSize)
+        {
+            var padding = (int)(expectedSize - mainData.Length);
+            writer.Write(new byte[padding]);
+        }
     }
 
     private void WriteDdsHeader(BinaryWriter writer, D3DTextureInfo texture)
@@ -135,13 +152,14 @@ internal sealed class DdxHeaderWriter(bool verboseLogging)
 
         uint flags = 0x1 | 0x2 | 0x4 | 0x1000; // DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH | DDSD_PIXELFORMAT
         if (texture.MipLevels > 1) flags |= 0x20000; // DDSD_MIPMAPCOUNT
+        flags |= IsCompressedFormat(texture.ActualFormat) ? 0x80000u : 0x8u; // DDSD_LINEARSIZE or DDSD_PITCH
 
         writer.Write(flags); // dwFlags
         writer.Write(texture.Height); // dwHeight
         writer.Write(texture.Width); // dwWidth
 
-        var pitch = CalculatePitch(texture.Width, texture.ActualFormat);
-        writer.Write(pitch); // dwPitchOrLinearSize
+        var pitchOrLinearSize = CalculatePitchOrLinearSize(texture.Width, texture.Height, texture.ActualFormat);
+        writer.Write(pitchOrLinearSize); // dwPitchOrLinearSize
 
         writer.Write(0); // dwDepth
         writer.Write(texture.MipLevels); // dwMipMapCount
@@ -180,18 +198,26 @@ internal sealed class DdxHeaderWriter(bool verboseLogging)
         writer.Write(0); // dwABitMask
     }
 
-    internal static uint CalculatePitch(uint width, uint format)
+    private static bool IsCompressedFormat(uint format)
     {
+        // Uncompressed formats: A8R8G8B8 (0x06), R5G6B5 (0x04)
+        return format is not (0x06 or 0x04);
+    }
+
+    internal static uint CalculatePitchOrLinearSize(uint width, uint height, uint format)
+    {
+        if (IsCompressedFormat(format))
+        {
+            // Compressed: linear size = total bytes for main surface
+            var blockSize = (uint)TextureUtilities.GetBlockSize(format);
+            return Math.Max(1, (width + 3) / 4) * Math.Max(1, (height + 3) / 4) * blockSize;
+        }
+
+        // Uncompressed: pitch = bytes per row
         return format switch
         {
-            // DXT1
-            0x12 => Math.Max(1, (width + 3) / 4) * 8,
-            // DXT3
-            0x13 or 0x14 => Math.Max(1, (width + 3) / 4) * 16,
-            // A8R8G8B8
-            0x06 => width * 4,
-            // R5G6B5
-            0x04 => width * 2,
+            0x06 => width * 4, // A8R8G8B8
+            0x04 => width * 2, // R5G6B5
             _ => width * 4
         };
     }

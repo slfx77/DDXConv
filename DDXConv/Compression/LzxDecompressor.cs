@@ -233,7 +233,16 @@ public sealed class LzxDecompressor : IDisposable
 
             // C line 1749: totalChunkSize > MaxTotalChunkSize is an error
             if (totalChunkSize > MaxTotalChunkSize) break;
-            if (inputPos + totalChunkSize > input.Length) break;
+
+            // When carving DDX from memory dumps, the input buffer may be truncated
+            // (boundary detection grabbed less data than the LZX stream needs).
+            // Instead of giving up with 0 bytes, try decompressing with available data.
+            var chunkTruncated = false;
+            if (inputPos + totalChunkSize > input.Length)
+            {
+                chunkTruncated = true;
+                totalChunkSize = input.Length - inputPos;
+            }
 
             if (totalOutput + chunkUncompressedSize > output.Length)
             {
@@ -260,6 +269,10 @@ public sealed class LzxDecompressor : IDisposable
             var decompressed = DecompressChunk(chunkInput, chunkOutput);
             if (decompressed < 0)
             {
+                // If we already have output from previous chunks, return partial success
+                if (totalOutput > 0)
+                    break;
+
                 inputCount = totalInput;
                 outputCount = totalOutput;
                 return -1;
@@ -268,6 +281,12 @@ public sealed class LzxDecompressor : IDisposable
             totalOutput += decompressed;
             totalInput += totalChunkSize;
             inputPos += totalChunkSize;
+
+            // Partial chunk recovery — don't continue, window state may be unreliable
+            if (decompressed < chunkUncompressedSize) break;
+
+            // Truncated chunk was the last we can process
+            if (chunkTruncated) break;
 
             // C line 1786: 0xFF chunks terminate this Decompress call
             if (firstByte == StreamTerminator) break;
@@ -358,15 +377,17 @@ public sealed class LzxDecompressor : IDisposable
                     Array.Copy(_mainTreeLengths, _mainTreeLenBackup, _mainTreeElements);
                     Array.Copy(_lengthTreeLengths, _lengthTreeLenBackup, LengthTreeNumElements);
 
-                    if (!ReadMainAndLengthTrees()) return -1;
+                    if (!ReadMainAndLengthTrees())
+                        return CopyPartialOrFail(initialWindowPos, totalDecompressed, output);
                 }
                 else if (blockType == BlockTypeUncompressed)
                 {
-                    if (!ReadUncompressedHeader()) return -1;
+                    if (!ReadUncompressedHeader())
+                        return CopyPartialOrFail(initialWindowPos, totalDecompressed, output);
                 }
                 else
                 {
-                    return -1;
+                    return CopyPartialOrFail(initialWindowPos, totalDecompressed, output);
                 }
 
                 _decompressState = StateDecompressing;
@@ -379,7 +400,8 @@ public sealed class LzxDecompressor : IDisposable
                 {
                     var bytesToDecompress = _blockRemaining;
                     if (bytesRemaining <= bytesToDecompress) bytesToDecompress = bytesRemaining;
-                    if (bytesToDecompress == 0) return -1;
+                    if (bytesToDecompress == 0)
+                        return CopyPartialOrFail(initialWindowPos, totalDecompressed, output);
 
                     int errorCode;
                     if (_blockType == BlockTypeAligned)
@@ -389,9 +411,10 @@ public sealed class LzxDecompressor : IDisposable
                     else if (_blockType == BlockTypeUncompressed)
                         errorCode = DecompressUncompressedBlock(bytesToDecompress);
                     else
-                        return -1;
+                        return CopyPartialOrFail(initialWindowPos, totalDecompressed, output);
 
-                    if (errorCode != 0) return -1;
+                    if (errorCode != 0)
+                        return CopyPartialOrFail(initialWindowPos, totalDecompressed, output);
 
                     totalDecompressed += bytesToDecompress;
                     bytesRemaining -= bytesToDecompress;
@@ -422,6 +445,36 @@ public sealed class LzxDecompressor : IDisposable
         }
 
         return totalDecompressed;
+    }
+
+    /// <summary>
+    ///     On decompression failure, recover partial data from the sliding window.
+    ///     Block decompression updates _windowPosition byte-by-byte, so the window
+    ///     contains valid decompressed data up to the point of failure.
+    ///     Returns partial byte count (positive) or -1 if nothing was decompressed.
+    /// </summary>
+    private int CopyPartialOrFail(int initialWindowPos, int completedBytes, Span<byte> output)
+    {
+        // Calculate total valid bytes: completed blocks + partial current block
+        var partialFromWindow = (_windowPosition - initialWindowPos) & _windowMask;
+        var totalPartial = Math.Max(completedBytes, partialFromWindow);
+
+        if (totalPartial <= 0)
+            return -1;
+
+        // Copy all valid bytes from window to output
+        for (var i = 0; i < totalPartial; i++)
+            output[i] = _window[(initialWindowPos + i) & _windowMask];
+
+        // Apply E8 translation to partial output
+        if (_intelFileSize != 0 && _chunkCount <= MaxChunkCountForE8)
+            E8Translate(output, totalPartial);
+
+        // Reset window position so subsequent chunks (if any) start from the
+        // correct position rather than from wherever the failed decode stopped.
+        _windowPosition = (initialWindowPos + totalPartial) & _windowMask;
+
+        return totalPartial;
     }
 
     // ================================================================
