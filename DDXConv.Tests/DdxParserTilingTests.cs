@@ -108,6 +108,49 @@ public class DdxParserTilingTests
         Assert.Equal(0 * blocksX + 5, TextureUtilities.GetPcBlockIndex(1, 1, blocksX, blockSize)); // (5,0)
     }
 
+    // === ATI2/BC5 tests (uses 8-byte tiling despite 16-byte blocks) ===
+
+    [Fact]
+    public void PcBlockIndex_ATI2_IsBijective_16x16()
+    {
+        const int blocksX = 16;
+        const int blocksY = 16;
+        const int blockSize = 16;
+        const uint ati2Format = 0x71;
+
+        var seen = new HashSet<int>();
+        for (var y = 0; y < blocksY; y++)
+        {
+            for (var x = 0; x < blocksX; x++)
+            {
+                var pcIndex = TextureUtilities.GetPcBlockIndex(x, y, blocksX, blockSize, ati2Format);
+                Assert.True(pcIndex >= 0 && pcIndex < blocksX * blocksY,
+                    $"PC index {pcIndex} out of range from Xbox ({x},{y})");
+                Assert.True(seen.Add(pcIndex),
+                    $"Duplicate PC index {pcIndex} from Xbox ({x},{y})");
+            }
+        }
+
+        Assert.Equal(blocksX * blocksY, seen.Count);
+    }
+
+    [Fact]
+    public void PcBlockIndex_ATI2_Uses8x2GroupMapping()
+    {
+        // ATI2/BC5 (16-byte blocks) should use the 8×2 macro-block tiling pattern
+        // (same as DXT1) because it's two independent BC4 sub-blocks
+        const int blocksX = 16;
+        const int blockSize = 16;
+        const uint ati2Format = 0x71;
+
+        // Same mapping as DXT1 8×2 pattern
+        Assert.Equal(0 * blocksX + 0, TextureUtilities.GetPcBlockIndex(0, 0, blocksX, blockSize, ati2Format));
+        Assert.Equal(0 * blocksX + 1, TextureUtilities.GetPcBlockIndex(1, 0, blocksX, blockSize, ati2Format));
+        Assert.Equal(1 * blocksX + 0, TextureUtilities.GetPcBlockIndex(2, 0, blocksX, blockSize, ati2Format));
+        Assert.Equal(1 * blocksX + 1, TextureUtilities.GetPcBlockIndex(3, 0, blocksX, blockSize, ati2Format));
+        Assert.Equal(0 * blocksX + 4, TextureUtilities.GetPcBlockIndex(0, 1, blocksX, blockSize, ati2Format));
+    }
+
     // === Common tests ===
 
     [Fact]

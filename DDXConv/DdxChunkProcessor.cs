@@ -380,7 +380,8 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         else if (magic == 0x52445833) // MAGIC_3XDR
         {
             var bs = TextureUtilities.GetBlockSize(texture.ActualFormat);
-            var untiled = TextureUtilities.UntileMacroBlocks(chunk1, atlasWidth, atlasHeight, bs);
+            var untiled = TextureUtilities.UntileMacroBlocks(chunk1, atlasWidth, atlasHeight, bs,
+                gpuFormat: texture.ActualFormat);
             untiledAtlas = TextureUtilities.SwapEndian16(untiled);
         }
         else
@@ -477,10 +478,35 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         if (width >= 512 && height >= 512)
             return ProcessLargeTextureSequentialMips(mainData, texture, width, height, mainSurfaceSize);
 
+        // Sub-tile textures (< 128px in both dimensions) store mip0 + sequential mip chain,
+        // not mip0 + atlas. The decompressed buffer may include tile-alignment padding.
+        var blocksWide = width / 4;
+        var blocksHigh = height / 4;
+        if (blocksWide < 32 && blocksHigh < 32)
+            return ProcessSubTileSequentialMips(mainData, texture, width, height, mainSurfaceSize);
+
         if (decompressedChunks.Count == 1 && mainData.Length == mainSurfaceSize * 2)
             return ProcessSingleChunkDoubleSize(mainData, texture, width, height, mainSurfaceSize, outputPath, options);
 
         return ProcessSmallTextureHorizontalSplit(mainData, texture, width, height, mainSurfaceSize, outputPath, options);
+    }
+
+    private byte[] ProcessSubTileSequentialMips(
+        byte[] mainData, D3DTextureInfo texture, int width, int height, uint mainSurfaceSize)
+    {
+        if (_verboseLogging)
+            Console.WriteLine($"Sub-tile texture ({width}x{height}) - deswizzle with tile-padded buffer");
+
+        // Pass the full tile-padded data to the Xenia deswizzle — sub-tile textures have
+        // address-space gaps that extend beyond mainSurfaceSize but the data IS present
+        // in the decompressed buffer at those higher offsets.
+        var mip0Linear = UnswizzleDxtTexture(mainData, width, height, texture.ActualFormat);
+
+        // The deswizzle output is exactly mainSurfaceSize bytes (blocksW * blocksH * blockSize)
+        texture.MipLevels = 1;
+        if (_verboseLogging)
+            Console.WriteLine($"Sub-tile: mip0 = {mip0Linear.Length} bytes");
+        return mip0Linear;
     }
 
     private byte[] ProcessLargeTextureSequentialMips(

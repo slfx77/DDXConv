@@ -231,7 +231,8 @@ public static class TextureUtilities
 
         var blocksWide = width / 4;
         var blocksHigh = height / 4;
-        var dst = new byte[src.Length];
+        var linearSize = blocksWide * blocksHigh * blockSize;
+        var dst = new byte[linearSize];
 
         // log2 of bytes per pixel for tiling math
         var log2Bpp = (uint)(blockSize / 4 + ((blockSize / 2) >> (blockSize / 4)));
@@ -250,6 +251,44 @@ public static class TextureUtilities
 
                 CopyBlock(src, srcOffset, dst, dstOffset, blockSize, swapEndian);
             }
+        }
+
+        return dst;
+    }
+
+    /// <summary>
+    ///     Deswizzle a sub-tile texture (< 32×32 blocks) using compacted Xenia tiling.
+    ///     DDX files store sub-tile data as Xenia tiling offsets sorted and packed sequentially
+    ///     (address-space gaps removed). We compute each block's Xenia offset, rank them,
+    ///     and read from the corresponding compact position.
+    /// </summary>
+    private static byte[] UnswizzleSubTile(byte[] src, byte[] dst,
+        int blocksWide, int blocksHigh, int blockSize, uint log2Bpp, bool swapEndian)
+    {
+        var totalBlocks = blocksWide * blocksHigh;
+
+        // Compute Xenia tiling offset for each block
+        var entries = new (uint offset, int x, int y)[totalBlocks];
+        for (var y = 0; y < blocksHigh; y++)
+        {
+            var rowOffset = TiledOffset2DRow((uint)y, (uint)blocksWide, log2Bpp);
+            for (var x = 0; x < blocksWide; x++)
+            {
+                var colOffset = TiledOffset2DColumn((uint)x, (uint)y, log2Bpp, rowOffset);
+                entries[y * blocksWide + x] = (colOffset, x, y);
+            }
+        }
+
+        // Sort by Xenia offset to determine compact storage order
+        Array.Sort(entries, (a, b) => a.offset.CompareTo(b.offset));
+
+        // Scatter: compact position (rank) -> linear (x, y)
+        for (var rank = 0; rank < totalBlocks; rank++)
+        {
+            var (_, x, y) = entries[rank];
+            var srcOffset = rank * blockSize;
+            var dstOffset = (y * blocksWide + x) * blockSize;
+            CopyBlock(src, srcOffset, dst, dstOffset, blockSize, swapEndian);
         }
 
         return dst;
@@ -489,7 +528,7 @@ public static class TextureUtilities
     ///     Xbox 360 3XDR output and PC reference DDS files, verified bijective on 16x16 grids.
     /// </remarks>
     public static byte[] UntileMacroBlocks(byte[] src, int width, int height, int blockSize,
-        bool swapEndian = false)
+        bool swapEndian = false, uint gpuFormat = 0)
     {
         var blocksX = Math.Max(1, (width + 3) / 4);
         var blocksY = Math.Max(1, (height + 3) / 4);
@@ -497,12 +536,22 @@ public static class TextureUtilities
 
         var dst = new byte[mipSize];
 
+        // ATI2/BC5 sub-tile textures (< 32×32 blocks) use compacted Xenia tiling.
+        // ATI2 has two independent BC4 sub-blocks tiled at 8-byte granularity,
+        // which produces a different ordering than the standard bit-permutation.
+        // Other formats (DXT1/DXT5/ATI1) use the standard GetPcBlockIndex path below.
+        if (blocksX < 32 && blocksY < 32 && IsAti2Format(gpuFormat))
+        {
+            var log2Bpp = (uint)(blockSize / 4 + ((blockSize / 2) >> (blockSize / 4)));
+            return UnswizzleSubTile(src, dst, blocksX, blocksY, blockSize, log2Bpp, swapEndian);
+        }
+
         for (var xboxIdx = 0; xboxIdx < blocksX * blocksY; xboxIdx++)
         {
             var xboxX = xboxIdx % blocksX;
             var xboxY = xboxIdx / blocksX;
 
-            var pcIdx = GetPcBlockIndex(xboxX, xboxY, blocksX, blockSize);
+            var pcIdx = GetPcBlockIndex(xboxX, xboxY, blocksX, blockSize, gpuFormat);
 
             var srcOffset = xboxIdx * blockSize;
             var dstOffset = pcIdx * blockSize;
@@ -518,14 +567,22 @@ public static class TextureUtilities
 
     /// <summary>
     ///     Calculate PC (linear) block index from Xbox (tiled) block coordinates.
-    ///     The tiling pattern depends on block size: DXT1 (8B) uses 8×2 groups,
-    ///     DXT5/ATI2 (16B) uses a wider bit permutation on 4-bit coordinates.
+    ///     The tiling pattern depends on the effective tile unit size:
+    ///     - 8-byte tile unit (DXT1, ATI1, ATI2): 8×2 macro-block groups
+    ///     - 16-byte tile unit (DXT5, DXT3): bit-level coordinate permutation
+    ///     ATI2/BC5 uses 8-byte tiling despite 16-byte blocks because it stores two
+    ///     independent BC4 channels — the GPU tiles each 8-byte sub-block independently.
     /// </summary>
-    internal static int GetPcBlockIndex(int xboxX, int xboxY, int blocksX, int blockSize = 16)
+    internal static int GetPcBlockIndex(int xboxX, int xboxY, int blocksX, int blockSize = 16,
+        uint gpuFormat = 0)
     {
-        if (blockSize <= 8)
+        // ATI2/BC5 (0x71) uses 8-byte tiling despite having 16-byte blocks,
+        // because it's two independent BC4 sub-blocks tiled at 8-byte granularity
+        var effectiveTileUnit = IsAti2Format(gpuFormat) ? 8 : blockSize;
+
+        if (effectiveTileUnit <= 8)
         {
-            // DXT1/ATI1 (8 bytes/block): 8×2 macro-block tiling
+            // DXT1/ATI1/ATI2 (8-byte tile unit): 8×2 macro-block tiling
             var groupX = xboxX / 8;
             var groupY = xboxY / 2;
             var localX = xboxX % 8;
@@ -537,7 +594,7 @@ public static class TextureUtilities
             return pcY * blocksX + pcX;
         }
 
-        // DXT5/DXT3/ATI2 (16 bytes/block): bit-level coordinate permutation
+        // DXT5/DXT3 (16-byte tile unit): bit-level coordinate permutation
         // Low 4 bits: px = x[2] x[3] y[1] x[1], py = y[3..2] y[0] x[0]
         // Higher bits pass through unchanged
         var pcX16 = (xboxX & ~0xF) |
@@ -546,6 +603,14 @@ public static class TextureUtilities
         var pcY16 = (xboxY & ~3) |
                     ((xboxY & 1) << 1) | (xboxX & 1);
         return pcY16 * blocksX + pcX16;
+    }
+
+    /// <summary>
+    ///     Check if the GPU format is ATI2/BC5 (dual-channel normal map format).
+    /// </summary>
+    private static bool IsAti2Format(uint gpuFormat)
+    {
+        return gpuFormat == 0x71;
     }
 
     #endregion

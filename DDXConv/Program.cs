@@ -46,6 +46,7 @@ var saveRaw = opts.Contains("--raw") || opts.Contains("-r");
 var saveMips = opts.Contains("--save-mips");
 var noUntileAtlas = opts.Contains("--no-untile-atlas");
 var noUntile = opts.Contains("--no-untile");
+var forceMorton = opts.Contains("--force-morton");
 var skipEndianSwap = opts.Contains("--no-swap");
 var verbose = opts.Contains("--verbose") || opts.Contains("-v");
 var progressMode = opts.Contains("--progress") || opts.Contains("-p");
@@ -106,6 +107,7 @@ if (Directory.Exists(inputPath))
                     SaveMips = saveMips,
                     NoUntileAtlas = noUntileAtlas,
                     NoUntile = noUntile,
+                    ForceMorton = forceMorton,
                     SkipEndianSwap = skipEndianSwap
                 });
             Interlocked.Increment(ref successes);
@@ -194,6 +196,7 @@ try
             SaveMips = saveMips,
             NoUntileAtlas = noUntileAtlas,
             NoUntile = noUntile,
+            ForceMorton = forceMorton,
             SkipEndianSwap = skipEndianSwap
         });
     Console.WriteLine($"Successfully converted {inputPath} to {outputPath}");

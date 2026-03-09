@@ -111,11 +111,20 @@ public class DdxParser(bool verbose = false)
         {
             textureData = options.SkipEndianSwap ? decompressed : TextureUtilities.SwapEndian16(decompressed);
         }
+        else if (options.ForceMorton)
+        {
+            // Diagnostic: try Morton/Z-order deswizzle instead of macro-block untiling
+            var mainSize = (int)TextureUtilities.CalculateMipSize((uint)width, (uint)height, texture.ActualFormat);
+            var mainData = decompressed.Length > mainSize ? decompressed[..mainSize] : decompressed;
+            textureData = TextureUtilities.UnswizzleMortonDXT(mainData, width, height, texture.ActualFormat,
+                !options.SkipEndianSwap);
+        }
         else
         {
             var blockSize = TextureUtilities.GetBlockSize(texture.ActualFormat);
             var swapEndian = !options.SkipEndianSwap;
-            textureData = TextureUtilities.UntileMacroBlocks(decompressed, width, height, blockSize, swapEndian);
+            textureData = TextureUtilities.UntileMacroBlocks(decompressed, width, height, blockSize, swapEndian,
+                texture.ActualFormat);
         }
 
         // Update texture info
@@ -170,13 +179,26 @@ public class DdxParser(bool verbose = false)
         // Calculate total expected size: atlas (2x resolution) + linear mips
         var atlasSize = (uint)TextureUtilities.CalculateMipSize(width, height, texture.ActualFormat);
 
+        // For sub-tile textures (< 128px), the GPU tile buffer is larger than the logical
+        // texture size due to Xenia's address-space expansion. Ensure the decompression
+        // buffer is large enough for the full tile-aligned data.
+        var decompressHint = atlasSize;
+        var blocksWide = width / 4;
+        var blocksHigh = height / 4;
+        if (blocksWide < 32 && blocksHigh < 32)
+        {
+            // Full tile = 32×32 blocks; the Xenia formula addresses up to this size
+            var blockSize = TextureUtilities.GetBlockSize(texture.ActualFormat);
+            decompressHint = Math.Max(atlasSize, (uint)(32 * 32 * blockSize));
+        }
+
         // Decompress all chunks in sequence
         var compressedData = mainData;
         var decompressedChunks = new List<byte[]>();
         var totalConsumed = 0;
 
         // Try to decompress first chunk
-        var firstChunk = DecompressXMemCompress(compressedData, atlasSize, out var firstChunkCompressedSize);
+        var firstChunk = DecompressXMemCompress(compressedData, decompressHint, out var firstChunkCompressedSize);
         if (_verboseLogging)
             Console.WriteLine(
                 $"Chunk 1: consumed {firstChunkCompressedSize} compressed bytes, got {firstChunk.Length} decompressed bytes");
