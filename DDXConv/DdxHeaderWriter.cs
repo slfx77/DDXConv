@@ -87,6 +87,7 @@ internal sealed class DdxHeaderWriter(bool verboseLogging)
 
         // Store the actual format for untiling
         info.ActualFormat = actualFormat != 0 ? actualFormat : info.DataFormat;
+        info.HasAlpha = TextureUtilities.FormatHasAlphaChannel(info.ActualFormat);
 
         // Determine DDS format
         info.Format = TextureUtilities.GetDxgiFormat(info.ActualFormat);
@@ -104,9 +105,15 @@ internal sealed class DdxHeaderWriter(bool verboseLogging)
 
     internal void WriteDdsFile(string outputPath, D3DTextureInfo texture, byte[] mainData)
     {
+        texture.HasAlpha |= TextureUtilities.DetectAlphaUsage(
+            texture.ActualFormat,
+            mainData,
+            texture.Width,
+            texture.Height);
+
         if (_verboseLogging)
             Console.WriteLine(
-                $"Writing DDS: Format=0x{texture.Format:X8}, ActualFormat=0x{texture.ActualFormat:X2}, DataFormat=0x{texture.DataFormat:X2}, MipLevels={texture.MipLevels}");
+                $"Writing DDS: Format=0x{texture.Format:X8}, ActualFormat=0x{texture.ActualFormat:X2}, DataFormat=0x{texture.DataFormat:X2}, MipLevels={texture.MipLevels}, HasAlpha={texture.HasAlpha}");
 
         using var writer = new BinaryWriter(File.Create(outputPath));
         WriteDdsHeader(writer, texture);
@@ -118,6 +125,12 @@ internal sealed class DdxHeaderWriter(bool verboseLogging)
     /// </summary>
     internal byte[] BuildDdsBytes(D3DTextureInfo texture, byte[] mainData)
     {
+        texture.HasAlpha |= TextureUtilities.DetectAlphaUsage(
+            texture.ActualFormat,
+            mainData,
+            texture.Width,
+            texture.Height);
+
         var expectedSize = CalculatePitchOrLinearSize(texture.Width, texture.Height, texture.ActualFormat);
         using var ms = new MemoryStream(128 + (int)Math.Max(mainData.Length, expectedSize));
         using var writer = new BinaryWriter(ms);
@@ -171,7 +184,7 @@ internal sealed class DdxHeaderWriter(bool verboseLogging)
         writer.Write(0);
 
         // DDS_PIXELFORMAT
-        WriteDdsPixelFormat(writer, texture.Format);
+        WriteDdsPixelFormat(writer, texture.ActualFormat, texture.Format, texture.HasAlpha);
 
         // dwCaps
         uint caps = 0x1000; // DDSCAPS_TEXTURE
@@ -184,12 +197,48 @@ internal sealed class DdxHeaderWriter(bool verboseLogging)
         writer.Write(0); // dwReserved2
     }
 
-    private void WriteDdsPixelFormat(BinaryWriter writer, uint fourccCode)
+    private void WriteDdsPixelFormat(
+        BinaryWriter writer,
+        uint actualFormat,
+        uint fourccCode,
+        bool hasAlpha)
     {
-        if (_verboseLogging) Console.WriteLine($"WriteDdsPixelFormat: fourccCode=0x{fourccCode:X8}");
+        if (_verboseLogging)
+            Console.WriteLine(
+                $"WriteDdsPixelFormat: actualFormat=0x{actualFormat:X2}, fourccCode=0x{fourccCode:X8}, hasAlpha={hasAlpha}");
 
         writer.Write(32); // dwSize
-        writer.Write(0x4); // dwFlags = DDPF_FOURCC
+
+        switch (actualFormat)
+        {
+            case 0x06:
+                writer.Write(hasAlpha ? 0x41u : 0x40u); // DDPF_RGB | optional DDPF_ALPHAPIXELS
+                writer.Write(0u); // dwFourCC
+                writer.Write(32u); // dwRGBBitCount
+                writer.Write(0x00FF0000u); // dwRBitMask
+                writer.Write(0x0000FF00u); // dwGBitMask
+                writer.Write(0x000000FFu); // dwBBitMask
+                writer.Write(hasAlpha ? 0xFF000000u : 0u); // dwABitMask
+                return;
+
+            case 0x04:
+                writer.Write(0x40u); // DDPF_RGB
+                writer.Write(0u); // dwFourCC
+                writer.Write(16u); // dwRGBBitCount
+                writer.Write(0x0000F800u); // dwRBitMask
+                writer.Write(0x000007E0u); // dwGBitMask
+                writer.Write(0x0000001Fu); // dwBBitMask
+                writer.Write(0u); // dwABitMask
+                return;
+        }
+
+        uint flags = 0x4; // DDPF_FOURCC
+        if (hasAlpha)
+        {
+            flags |= 0x1; // DDPF_ALPHAPIXELS
+        }
+
+        writer.Write(flags);
         writer.Write(fourccCode); // FourCC code (DDS format: 0x31545844=DXT1, 0x35545844=DXT5)
         writer.Write(0); // dwRGBBitCount
         writer.Write(0); // dwRBitMask
