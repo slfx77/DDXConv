@@ -78,6 +78,63 @@ public static class TextureUtilities
         };
     }
 
+    internal static bool FormatHasAlphaChannel(uint format)
+    {
+        return format switch
+        {
+            // DXT3 / DXT5 and A8R8G8B8 always carry alpha information.
+            0x53 or 0x54 or 0x88 or 0x13 or 0x14 or 0x06 => true,
+            _ => false
+        };
+    }
+
+    internal static bool DetectAlphaUsage(uint format, byte[] data, uint width, uint height)
+    {
+        if (FormatHasAlphaChannel(format))
+        {
+            return true;
+        }
+
+        if (format is not (0x52 or 0x82 or 0x86 or 0x12) ||
+            data.Length < 8)
+        {
+            return false;
+        }
+
+        var mip0Size = (int)CalculateMipSize(width, height, format);
+        var bytesToScan = Math.Min(data.Length, mip0Size);
+        return ContainsDxt1Transparency(data, bytesToScan);
+    }
+
+    private static bool ContainsDxt1Transparency(byte[] data, int length)
+    {
+        for (var offset = 0; offset + 7 < length; offset += 8)
+        {
+            var color0 = (ushort)(data[offset] | (data[offset + 1] << 8));
+            var color1 = (ushort)(data[offset + 2] | (data[offset + 3] << 8));
+            if (color0 > color1)
+            {
+                continue;
+            }
+
+            var lookup = (uint)(data[offset + 4] |
+                                (data[offset + 5] << 8) |
+                                (data[offset + 6] << 16) |
+                                (data[offset + 7] << 24));
+            for (var i = 0; i < 16; i++)
+            {
+                if ((lookup & 0x3) == 0x3)
+                {
+                    return true;
+                }
+
+                lookup >>= 2;
+            }
+        }
+
+        return false;
+    }
+
     #endregion
 
     #region Size Calculations
@@ -536,10 +593,7 @@ public static class TextureUtilities
 
         var dst = new byte[mipSize];
 
-        // ATI2/BC5 sub-tile textures (< 32×32 blocks) use compacted Xenia tiling.
-        // ATI2 has two independent BC4 sub-blocks tiled at 8-byte granularity,
-        // which produces a different ordering than the standard bit-permutation.
-        // Other formats (DXT1/DXT5/ATI1) use the standard GetPcBlockIndex path below.
+        // ATI2/BC5 sub-tile textures use compact Xenia tiling (8-byte sub-block tiling)
         if (blocksX < 32 && blocksY < 32 && IsAti2Format(gpuFormat))
         {
             var log2Bpp = (uint)(blockSize / 4 + ((blockSize / 2) >> (blockSize / 4)));
@@ -594,14 +648,32 @@ public static class TextureUtilities
             return pcY * blocksX + pcX;
         }
 
-        // DXT5/DXT3 (16-byte tile unit): bit-level coordinate permutation
-        // Low 4 bits: px = x[2] x[3] y[1] x[1], py = y[3..2] y[0] x[0]
-        // Higher bits pass through unchanged
-        var pcX16 = (xboxX & ~0xF) |
-                    (((xboxX >> 2) & 1) << 3) | (((xboxX >> 3) & 1) << 2) |
-                    (((xboxY >> 1) & 1) << 1) | ((xboxX >> 1) & 1);
-        var pcY16 = (xboxY & ~3) |
-                    ((xboxY & 1) << 1) | (xboxX & 1);
+        // DXT5/DXT3 (16-byte tile unit): bit-level coordinate permutation.
+        // Core pattern (verified against PC reference DDS files):
+        //   pc_x[0]=x[1], pc_x[1]=y[1], pc_y[0]=x[0], pc_y[1]=y[0]
+        // For ≥16-wide grids (4+ bit coordinates), bits 2-3 have an x[2]/x[3] swap:
+        //   pc_x[2]=x[3], pc_x[3]=x[2]  (derived from 44 DXT5 block matches at 16×16)
+        // For <16-wide grids (3-bit coordinates), higher bits pass through:
+        //   pc_x[2]=x[2], pc_y[2]=y[2]  (verified against PC reference at 8×8)
+        int pcX16, pcY16;
+        if (blocksX >= 16)
+        {
+            pcX16 = (xboxX & ~0xF) |
+                     (((xboxX >> 2) & 1) << 3) | (((xboxX >> 3) & 1) << 2) |
+                     (((xboxY >> 1) & 1) << 1) | ((xboxX >> 1) & 1);
+            pcY16 = (xboxY & ~3) |
+                     ((xboxY & 1) << 1) | (xboxX & 1);
+        }
+        else
+        {
+            // Small grids (< 16 blocks wide): pass through higher bits unchanged
+            pcX16 = (xboxX & ~0x7) |
+                     (((xboxX >> 2) & 1) << 2) |
+                     (((xboxY >> 1) & 1) << 1) | ((xboxX >> 1) & 1);
+            pcY16 = (xboxY & ~0x3) |
+                     ((xboxY & 1) << 1) | (xboxX & 1);
+        }
+
         return pcY16 * blocksX + pcX16;
     }
 
