@@ -5,6 +5,7 @@ using BCnEncoder.Shared;
 using BCnEncoder.Shared.ImageFiles;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Formats.Png;
 
 namespace DDXConv;
 
@@ -144,5 +145,34 @@ public static class DdsPostProcessor
 
         File.Delete(ddsPath);
         File.Move(tmpPath, ddsPath);
+    }
+
+    public static string[] ExportMipImages(string ddsPath)
+    {
+        var decoder = new BcDecoder();
+        using var fs = File.OpenRead(ddsPath);
+        var mipImages = decoder.DecodeAllMipMapsToImageRgba32(fs);
+        var outputPaths = new string[mipImages.Length];
+        var directory = Path.GetDirectoryName(ddsPath) ?? Directory.GetCurrentDirectory();
+        var baseName = Path.GetFileNameWithoutExtension(ddsPath);
+
+        try
+        {
+            for (var i = 0; i < mipImages.Length; i++)
+            {
+                var outputPath = Path.Combine(directory, $"{baseName}_mip{i}.png");
+                mipImages[i].SaveAsPng(outputPath, new PngEncoder());
+                outputPaths[i] = outputPath;
+            }
+        }
+        finally
+        {
+            foreach (var mipImage in mipImages)
+            {
+                mipImage.Dispose();
+            }
+        }
+
+        return outputPaths;
     }
 }

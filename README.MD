@@ -34,6 +34,7 @@ GUI Integration Options:
 Developer Options:
   --raw, -r            Save raw combined decompressed data as binary file
   --save-mips          Save extracted mip levels from atlas
+  --save-mip-images    Save converted DDS mip chain as PNG files
   --no-untile-atlas    Do not untile/unswizzle the atlas (leave tiled)
   --no-untile          Do not untile/unswizzle ANY data (for debugging)
   --no-swap            Do not perform endian swap on data

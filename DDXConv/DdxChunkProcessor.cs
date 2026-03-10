@@ -124,23 +124,32 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         var untiledMain = UnswizzleDxtTexture(chunk2, width, height, texture.ActualFormat);
 
         // Determine mip extraction strategy based on chunk1 size.
-        // On-disk DDX stores mips as sequential tile-aligned surfaces (Xenia model).
-        // Memory dumps store mips as an XG atlas (GPU in-memory layout).
+        // On-disk DDX stores mips as sequential tile-aligned surfaces (Xenia model),
+        // and some files only include a prefix of the mip chain. Memory dumps store
+        // mips as an XG atlas (GPU in-memory layout).
         var expectedSequentialSize = ComputeSequentialTiledMipTotal(width, height, texture.ActualFormat, blockSize);
-        var isSequentialMips = (int)chunk1Size == expectedSequentialSize;
+        var sequentialStoredMipLevels =
+            magic != 0x52445833
+                ? CountSequentialStoredMipLevels(width, height, texture.ActualFormat, blockSize, (int)chunk1Size)
+                : 0;
+        var isSequentialMips = sequentialStoredMipLevels > 0;
 
         byte[] mips;
-        if (isSequentialMips && magic != 0x52445833) // not 3XDR
+        if (isSequentialMips)
         {
-            // On-disk DDX: chunk1 = sequential independently-tiled mip surfaces
+            // On-disk DDX: chunk1 = sequential independently-tiled mip surfaces.
             if (_verboseLogging)
                 Console.WriteLine(
-                    $"Sequential tiled mips: chunk1={chunk1Size} matches expected={expectedSequentialSize}");
+                    chunk1Size == expectedSequentialSize
+                        ? $"Sequential tiled mips: chunk1={chunk1Size} matches expected={expectedSequentialSize}"
+                        : $"Sequential tiled mips: chunk1={chunk1Size} stores {sequentialStoredMipLevels} mip level(s) as a prefix of expected={expectedSequentialSize}");
 
             if (options is { NoUntileAtlas: true })
                 mips = chunk1; // raw tiled data requested
             else
                 mips = ExtractSequentialTiledMips(chunk1, width, height, texture.ActualFormat, blockSize);
+
+            texture.MipLevels = (byte)Math.Min(255, sequentialStoredMipLevels + 1);
         }
         else
         {
@@ -193,6 +202,38 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         }
 
         return total;
+    }
+
+    internal static int CountSequentialStoredMipLevels(int baseWidth, int baseHeight, uint format, int blockSize,
+        int dataSize)
+    {
+        if (dataSize <= 0) return 0;
+
+        var totalLevels = (int)TextureUtilities.CalculateMipLevels((uint)baseWidth, (uint)baseHeight);
+        var consumed = 0;
+        var storedMipLevels = 0;
+
+        for (var level = 1; level < totalLevels; level++)
+        {
+            var mipW = Math.Max(4, baseWidth >> level);
+            var mipH = Math.Max(4, baseHeight >> level);
+
+            if (Math.Min(mipW, mipH) <= 16)
+            {
+                var packedTailSize = 32 * 32 * blockSize;
+                return consumed + packedTailSize == dataSize ? totalLevels - 1 : 0;
+            }
+
+            var mipSize = TextureUtilities.CalculateTiledMipSize(mipW, mipH, format);
+            if (consumed + mipSize > dataSize) return 0;
+
+            consumed += mipSize;
+            storedMipLevels++;
+
+            if (consumed == dataSize) return storedMipLevels;
+        }
+
+        return 0;
     }
 
     /// <summary>

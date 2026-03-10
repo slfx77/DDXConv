@@ -31,6 +31,7 @@ if (opts.Contains("--help") || opts.Contains("-h"))
     Console.WriteLine("Developer Options:");
     Console.WriteLine("  --raw, -r            Save raw combined decompressed data as binary file");
     Console.WriteLine("  --save-mips          Save extracted mip levels from atlas");
+    Console.WriteLine("  --save-mip-images    Save converted DDS mip chain as PNG files");
     Console.WriteLine("  --no-untile-atlas    Do not untile/unswizzle the atlas (leave tiled)");
     Console.WriteLine("  --no-untile          Do not untile/unswizzle ANY data (for debugging)");
     Console.WriteLine("  --no-swap            Do not perform endian swap on data");
@@ -44,6 +45,7 @@ var regenMips = opts.Contains("--regen-mips") || opts.Contains("-g");
 var saveAtlas = opts.Contains("--atlas") || opts.Contains("-a");
 var saveRaw = opts.Contains("--raw") || opts.Contains("-r");
 var saveMips = opts.Contains("--save-mips");
+var saveMipImages = opts.Contains("--save-mip-images");
 var noUntileAtlas = opts.Contains("--no-untile-atlas");
 var noUntile = opts.Contains("--no-untile");
 var forceMorton = opts.Contains("--force-morton");
@@ -115,6 +117,7 @@ if (Directory.Exists(inputPath))
             WriteProgress("OK", ddxFile);
 
             if (regenMips) DdsPostProcessor.RegenerateMips(outputBatchPath);
+            if (saveMipImages) DdsPostProcessor.ExportMipImages(outputBatchPath);
         }
         catch (NotSupportedException)
         {
@@ -155,6 +158,7 @@ if (Directory.Exists(inputPath))
             {
                 DdsPostProcessor.MergeNormalSpecularMaps(ddsFile, File.Exists(specFile) ? specFile : null);
                 Console.WriteLine($"Converted to PC-friendly normal map: {ddsFile}");
+                if (saveMipImages) DdsPostProcessor.ExportMipImages(ddsFile);
             }
             catch (Exception ex)
             {
@@ -201,13 +205,16 @@ try
         });
     Console.WriteLine($"Successfully converted {inputPath} to {outputPath}");
 
-    // Regenerate mips unless disabled or if PC-friendly normal map case (no reason to add another re-encode since normal merge regenerates mips)
-    if (!regenMips ||
+    var skipMipRegeneration =
+        !regenMips ||
         ((inputPath.EndsWith("_s.dds", StringComparison.OrdinalIgnoreCase) ||
-          inputPath.EndsWith("_n.dds", StringComparison.OrdinalIgnoreCase)) && pcFriendly))
-        return;
+          inputPath.EndsWith("_n.dds", StringComparison.OrdinalIgnoreCase)) && pcFriendly);
 
-    DdsPostProcessor.RegenerateMips(outputPath);
+    if (!skipMipRegeneration)
+        DdsPostProcessor.RegenerateMips(outputPath);
+
+    if (saveMipImages)
+        DdsPostProcessor.ExportMipImages(outputPath);
 }
 catch (Exception ex)
 {
