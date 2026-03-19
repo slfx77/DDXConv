@@ -7,10 +7,10 @@ public class DdxParser(bool verbose = false)
     private const uint MAGIC_3XDO = 0x4F445833;
     private const uint MAGIC_3XDR = 0x52445833;
 
-    private readonly bool _verboseLogging = verbose;
-
     private readonly DdxHeaderWriter _headerWriter = new(verbose);
     private readonly DdxMipAtlasUnpacker _mipAtlasUnpacker = new(verbose);
+
+    private readonly bool _verboseLogging = verbose;
 
     private ConversionOptions? _currentOptions;
 
@@ -114,7 +114,7 @@ public class DdxParser(bool verbose = false)
         else if (options.ForceMorton)
         {
             // Diagnostic: try Morton/Z-order deswizzle instead of macro-block untiling
-            var mainSize = (int)TextureUtilities.CalculateMipSize((uint)width, (uint)height, texture.ActualFormat);
+            var mainSize = (int)TextureUtilities.CalculateMipSize(width, (uint)height, texture.ActualFormat);
             var mainData = decompressed.Length > mainSize ? decompressed[..mainSize] : decompressed;
             textureData = TextureUtilities.UnswizzleMortonDXT(mainData, width, height, texture.ActualFormat,
                 !options.SkipEndianSwap);

@@ -314,7 +314,7 @@ public static class TextureUtilities
     }
 
     /// <summary>
-    ///     Deswizzle a sub-tile texture (< 32×32 blocks) using compacted Xenia tiling.
+    ///     Deswizzle a sub-tile texture (&lt;32×32 blocks) using compacted Xenia tiling.
     ///     DDX files store sub-tile data as Xenia tiling offsets sorted and packed sequentially
     ///     (address-space gaps removed). We compute each block's Xenia offset, rank them,
     ///     and read from the corresponding compact position.
@@ -579,8 +579,8 @@ public static class TextureUtilities
     /// <remarks>
     ///     The Xbox 360 GPU tiles DXT blocks using a bit-level coordinate rearrangement.
     ///     For block coordinates (x, y) with n-bit values, the tiled-to-linear mapping is:
-    ///       px = x[2] x[3] y[1] x[1]  (for 4-bit coordinates)
-    ///       py = y[3] y[2] y[0] x[0]
+    ///     px = x[2] x[3] y[1] x[1]  (for 4-bit coordinates)
+    ///     py = y[3] y[2] y[0] x[0]
     ///     This was derived by matching 44 uniquely-identifiable DXT5 color blocks between
     ///     Xbox 360 3XDR output and PC reference DDS files, verified bijective on 16x16 grids.
     /// </remarks>
@@ -659,19 +659,19 @@ public static class TextureUtilities
         if (blocksX >= 16)
         {
             pcX16 = (xboxX & ~0xF) |
-                     (((xboxX >> 2) & 1) << 3) | (((xboxX >> 3) & 1) << 2) |
-                     (((xboxY >> 1) & 1) << 1) | ((xboxX >> 1) & 1);
+                    (((xboxX >> 2) & 1) << 3) | (((xboxX >> 3) & 1) << 2) |
+                    (((xboxY >> 1) & 1) << 1) | ((xboxX >> 1) & 1);
             pcY16 = (xboxY & ~3) |
-                     ((xboxY & 1) << 1) | (xboxX & 1);
+                    ((xboxY & 1) << 1) | (xboxX & 1);
         }
         else
         {
             // Small grids (< 16 blocks wide): pass through higher bits unchanged
             pcX16 = (xboxX & ~0x7) |
-                     (((xboxX >> 2) & 1) << 2) |
-                     (((xboxY >> 1) & 1) << 1) | ((xboxX >> 1) & 1);
+                    (((xboxX >> 2) & 1) << 2) |
+                    (((xboxY >> 1) & 1) << 1) | ((xboxX >> 1) & 1);
             pcY16 = (xboxY & ~0x3) |
-                     ((xboxY & 1) << 1) | (xboxX & 1);
+                    ((xboxY & 1) << 1) | (xboxX & 1);
         }
 
         return pcY16 * blocksX + pcX16;

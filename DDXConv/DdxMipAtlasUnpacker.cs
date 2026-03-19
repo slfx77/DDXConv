@@ -353,7 +353,7 @@ internal sealed class DdxMipAtlasUnpacker(bool verboseLogging)
         if (actualFromMain)
         {
             // XG-computed layout for in-memory two-chunk atlas (handles all texture sizes)
-            mipPositions = TextureUtilities.ComputeXgMipLayout(mainWidth, mainHeight, startLevel: 1);
+            mipPositions = TextureUtilities.ComputeXgMipLayout(mainWidth, mainHeight, 1);
 
             if (_verboseLogging)
                 Console.WriteLine(

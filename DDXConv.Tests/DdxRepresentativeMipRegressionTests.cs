@@ -8,6 +8,8 @@ namespace DDXConv.Tests;
 
 public sealed class DdxRepresentativeMipRegressionTests
 {
+    private static readonly JsonSerializerOptions IndentedJsonOptions = new() { WriteIndented = true };
+
     private const string XboxTexturesRoot = @"Sample\Textures\textures_360_final\textures";
     private const string PcTexturesRoot = @"Sample\Unpacked_Builds\PC_Final_Unpacked\Data\textures";
 
@@ -108,7 +110,7 @@ public sealed class DdxRepresentativeMipRegressionTests
 
         metrics = metrics with { PerMipMeanAbsoluteRgbError = perMipMae };
         File.WriteAllText(Path.Combine(artifactRoot, "metrics.json"),
-            JsonSerializer.Serialize(metrics, new JsonSerializerOptions { WriteIndented = true }));
+            JsonSerializer.Serialize(metrics, IndentedJsonOptions));
 
         WriteComparisonSheet(regressionCase.Label, artifactRoot, xboxMipPngs, pcMipPngs);
 
@@ -121,10 +123,10 @@ public sealed class DdxRepresentativeMipRegressionTests
             }
     }
 
-    private static void WriteComparisonSheet(string label, string artifactRoot, IReadOnlyList<string> xboxMipPngs,
-        IReadOnlyList<string> pcMipPngs)
+    private static void WriteComparisonSheet(string label, string artifactRoot, string[] xboxMipPngs,
+        string[] pcMipPngs)
     {
-        var rowCount = Math.Min(Math.Min(xboxMipPngs.Count, pcMipPngs.Count), 6);
+        var rowCount = Math.Min(Math.Min(xboxMipPngs.Length, pcMipPngs.Length), 6);
         const int cellSize = 160;
         const int gap = 12;
         using var sheet = new Image<Rgba32>(cellSize * 2 + gap, rowCount * (cellSize + gap) - gap, Color.White);

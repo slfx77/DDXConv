@@ -54,7 +54,8 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
                 Console.WriteLine(
                     $"Using actual decompressed chunk boundaries: chunk1={chunk1Size}, chunk2={chunk2Size}");
         }
-        else if (decompressedChunks.Count > 1 && mainData.Length == (uint)TextureUtilities.CalculateMipSize(width, height, texture.ActualFormat) * 2)
+        else if (decompressedChunks.Count > 1 && mainData.Length ==
+                 (uint)TextureUtilities.CalculateMipSize(width, height, texture.ActualFormat) * 2)
         {
             var atlasSize = (uint)TextureUtilities.CalculateMipSize(width, height, texture.ActualFormat);
             isTwoChunkFormat = true;
@@ -529,7 +530,8 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         if (decompressedChunks.Count == 1 && mainData.Length == mainSurfaceSize * 2)
             return ProcessSingleChunkDoubleSize(mainData, texture, width, height, mainSurfaceSize, outputPath, options);
 
-        return ProcessSmallTextureHorizontalSplit(mainData, texture, width, height, mainSurfaceSize, outputPath, options);
+        return ProcessSmallTextureHorizontalSplit(mainData, texture, width, height, mainSurfaceSize, outputPath,
+            options);
     }
 
     private byte[] ProcessSubTileSequentialMips(
@@ -775,8 +777,8 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
             Console.WriteLine(
                 $"Detected atlas-only data ({mainData.Length} bytes) - attempting mip extraction");
 
-        int atlasWidth = width;
-        int atlasHeight = height;
+        var atlasWidth = width;
+        var atlasHeight = height;
 
         var expectedAtlasDataSize = TextureUtilities.CalculateMipSize(width, height, texture.ActualFormat);
 
