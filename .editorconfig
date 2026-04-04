@@ -1,0 +1,13 @@
+[*.cs]
+# DDXConv is a git submodule — suppress analyzer warnings here
+dotnet_diagnostic.S3776.severity = none
+dotnet_diagnostic.CA1502.severity = none
+dotnet_diagnostic.S1200.severity = none
+dotnet_diagnostic.IDE0060.severity = none
+dotnet_diagnostic.CA1859.severity = none
+dotnet_diagnostic.S1244.severity = none
+dotnet_diagnostic.S3358.severity = none
+dotnet_diagnostic.CA1822.severity = none
+dotnet_diagnostic.S1066.severity = none
+dotnet_diagnostic.S127.severity = none
+dotnet_diagnostic.S3973.severity = none
