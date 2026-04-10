@@ -47,9 +47,8 @@ public static class DdsPostProcessor
         // Create combined image
         var combined = new Image<Rgba32>(normalImage.Width, normalImage.Height);
 
-        // Iterate pixels.
-        // Assumes normalImage R,G channels are the signed XY encoded as 0..255 -> -1..1
-        // We'll reconstruct Z = sqrt(1 - x^2 - y^2) and map to 0..255.
+        // R,G channels hold signed XY encoded as 0..255 -> -1..1.
+        // Z is reconstructed as sqrt(1 - x^2 - y^2) and mapped back to 0..255.
         for (var y = 0; y < normalImage.Height; y++)
         {
             for (var x = 0; x < normalImage.Width; x++)
