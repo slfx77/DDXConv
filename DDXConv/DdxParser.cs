@@ -4,13 +4,11 @@ namespace DDXConv;
 
 public class DdxParser(bool verbose = false)
 {
-    private const uint MAGIC_3XDO = 0x4F445833;
-    private const uint MAGIC_3XDR = 0x52445833;
+    private const uint Magic3Xdo = 0x4F445833;
+    private const uint Magic3Xdr = 0x52445833;
 
     private readonly DdxHeaderWriter _headerWriter = new(verbose);
     private readonly DdxMipAtlasUnpacker _mipAtlasUnpacker = new(verbose);
-
-    private readonly bool _verboseLogging = verbose;
 
     private ConversionOptions? _currentOptions;
 
@@ -22,16 +20,16 @@ public class DdxParser(bool verbose = false)
         using var reader = new BinaryReader(File.OpenRead(inputPath));
         var magic = reader.ReadUInt32();
 
-        if (magic == MAGIC_3XDR)
+        if (magic == Magic3Xdr)
         {
             var (texture, data) = Convert3Xdr(reader, options);
             _headerWriter.WriteDdsFile(outputPath, texture, data);
-            if (_verboseLogging)
+            if (verbose)
                 Console.WriteLine($"3XDR: Saved DDS to {outputPath} ({data.Length} bytes, {texture.MipLevels} mip(s))");
             return;
         }
 
-        if (magic != MAGIC_3XDO) throw new InvalidDataException($"Unknown DDX magic: 0x{magic:X8}.");
+        if (magic != Magic3Xdo) throw new InvalidDataException($"Unknown DDX magic: 0x{magic:X8}.");
 
         var (tex3Xdo, linearData) = ConvertDdx(reader, outputPath, options, magic);
         _headerWriter.WriteDdsFile(outputPath, tex3Xdo, linearData);
@@ -49,13 +47,13 @@ public class DdxParser(bool verbose = false)
 
         var opts = options ?? new ConversionOptions();
 
-        if (magic == MAGIC_3XDR)
+        if (magic == Magic3Xdr)
         {
             var (texture, data) = Convert3Xdr(reader, opts);
             return _headerWriter.BuildDdsBytes(texture, data);
         }
 
-        if (magic != MAGIC_3XDO) throw new InvalidDataException($"Unknown DDX magic: 0x{magic:X8}.");
+        if (magic != Magic3Xdo) throw new InvalidDataException($"Unknown DDX magic: 0x{magic:X8}.");
 
         // Pass null outputPath — auxiliary file writes (raw dump, atlas) are skipped
         var (tex, linearData) = ConvertDdx(reader, null, opts, magic);
@@ -89,7 +87,7 @@ public class DdxParser(bool verbose = false)
 
         var texture = _headerWriter.ParseD3DTextureHeaderWithDimensions(textureHeader, out var width, out var height);
 
-        if (_verboseLogging)
+        if (verbose)
             Console.WriteLine($"3XDR: {width}x{height}, Format=0x{texture.ActualFormat:X2}");
 
         // Read all remaining compressed data
@@ -101,7 +99,7 @@ public class DdxParser(bool verbose = false)
         var mip0Size = (uint)TextureUtilities.CalculateMipSize(width, height, texture.ActualFormat);
         var decompressed = DecompressXMemCompress(compressedData, mip0Size, out var consumed);
 
-        if (_verboseLogging)
+        if (verbose)
             Console.WriteLine(
                 $"3XDR: Decompressed {consumed} bytes to {decompressed.Length} bytes (expected mip0={mip0Size})");
 
@@ -116,7 +114,7 @@ public class DdxParser(bool verbose = false)
             // Diagnostic: try Morton/Z-order deswizzle instead of macro-block untiling
             var mainSize = (int)TextureUtilities.CalculateMipSize(width, (uint)height, texture.ActualFormat);
             var mainData = decompressed.Length > mainSize ? decompressed[..mainSize] : decompressed;
-            textureData = TextureUtilities.UnswizzleMortonDXT(mainData, width, height, texture.ActualFormat,
+            textureData = TextureUtilities.UnswizzleMortonDxt(mainData, width, height, texture.ActualFormat,
                 !options.SkipEndianSwap);
         }
         else
@@ -166,7 +164,7 @@ public class DdxParser(bool verbose = false)
         var texture =
             _headerWriter.ParseD3DTextureHeaderWithDimensions(textureHeader, out var width, out var height);
 
-        if (_verboseLogging) Console.WriteLine($"Dimensions from D3D texture header: {width}x{height}");
+        if (verbose) Console.WriteLine($"Dimensions from D3D texture header: {width}x{height}");
 
         // For 3XDO files, the texture data starts immediately after the header at offset 0x44
         var currentPos = reader.BaseStream.Position;
@@ -199,7 +197,7 @@ public class DdxParser(bool verbose = false)
 
         // Try to decompress first chunk
         var firstChunk = DecompressXMemCompress(compressedData, decompressHint, out var firstChunkCompressedSize);
-        if (_verboseLogging)
+        if (verbose)
             Console.WriteLine(
                 $"Chunk 1: consumed {firstChunkCompressedSize} compressed bytes, got {firstChunk.Length} decompressed bytes");
 
@@ -214,7 +212,7 @@ public class DdxParser(bool verbose = false)
 
             if (remainingSize < 10) break;
 
-            if (_verboseLogging)
+            if (verbose)
                 Console.WriteLine(
                     $"Attempting to decompress chunk {decompressedChunks.Count + 1} at offset {offset} ({remainingSize} bytes remaining)");
 
@@ -224,7 +222,7 @@ public class DdxParser(bool verbose = false)
                 Array.Copy(compressedData, offset, remainingCompressed, 0, remainingSize);
 
                 var chunk = DecompressXMemCompress(remainingCompressed, atlasSize, out var chunkCompressedSize);
-                if (_verboseLogging)
+                if (verbose)
                     Console.WriteLine(
                         $"Chunk {decompressedChunks.Count + 1}: consumed {chunkCompressedSize} compressed bytes, got {chunk.Length} decompressed bytes");
 
@@ -235,7 +233,7 @@ public class DdxParser(bool verbose = false)
             }
             catch (Exception ex)
             {
-                if (_verboseLogging)
+                if (verbose)
                     Console.WriteLine($"Failed to decompress chunk {decompressedChunks.Count + 1}: {ex.Message}");
 
                 break;
@@ -252,13 +250,13 @@ public class DdxParser(bool verbose = false)
 
         mainData = new byte[totalDecompressed];
         var writeOffset = 0;
-        for (var i = 0; i < decompressedChunks.Count; i++)
+        foreach (var chunk in decompressedChunks)
         {
-            Array.Copy(decompressedChunks[i], 0, mainData, writeOffset, decompressedChunks[i].Length);
-            writeOffset += decompressedChunks[i].Length;
+            Array.Copy(chunk, 0, mainData, writeOffset, chunk.Length);
+            writeOffset += chunk.Length;
         }
 
-        if (_verboseLogging)
+        if (verbose)
             Console.WriteLine(
                 $"Combined {decompressedChunks.Count} chunks = {mainData.Length} bytes total (consumed {totalConsumed}/{compressedData.Length} compressed bytes)");
 
@@ -267,7 +265,7 @@ public class DdxParser(bool verbose = false)
         {
             var rawPath = outputPath.Replace(".dds", "_raw.bin");
             File.WriteAllBytes(rawPath, mainData);
-            if (_verboseLogging) Console.WriteLine($"Saved raw combined data to {rawPath}");
+            if (verbose) Console.WriteLine($"Saved raw combined data to {rawPath}");
         }
 
         // Calculate expected main surface size with detected dimensions
@@ -277,9 +275,9 @@ public class DdxParser(bool verbose = false)
         _mipAtlasUnpacker.WriteDdsFileCallback = _headerWriter.WriteDdsFile;
 
         // Create chunk processor with delegates
-        var chunkProcessor = new DdxChunkProcessor(_verboseLogging)
+        var chunkProcessor = new DdxChunkProcessor(verbose)
         {
-            UnswizzleDxtTexture = UnswizzleDXTTexture,
+            UnswizzleDxtTexture = UnswizzleDxtTexture,
             UnpackMipAtlas = _mipAtlasUnpacker.UnpackMipAtlas,
             WriteDdsFile = _headerWriter.WriteDdsFile
         };
@@ -295,7 +293,7 @@ public class DdxParser(bool verbose = false)
             texture.Width, texture.Height, texture.ActualFormat, linearData.Length);
         if (validatedMips < texture.MipLevels)
         {
-            if (_verboseLogging)
+            if (verbose)
                 Console.WriteLine(
                     $"Correcting mip count: header claimed {texture.MipLevels} but data only contains {validatedMips}");
             texture.MipLevels = validatedMips;
@@ -330,7 +328,7 @@ public class DdxParser(bool verbose = false)
             // only contains data from fully-decompressed chunks.
             if (decompressedLen > 0)
             {
-                if (_verboseLogging)
+                if (verbose)
                     Console.WriteLine(
                         $"LZX partial decompression: got {decompressedLen} bytes from {compressedLen} consumed before failure");
 
@@ -342,16 +340,16 @@ public class DdxParser(bool verbose = false)
             throw new InvalidOperationException($"LzxDecompressor decompression failed: {result}");
         }
 
-        if (_verboseLogging) Console.WriteLine($"Decompressed {compressedLen} -> {decompressedLen} bytes");
+        if (verbose) Console.WriteLine($"Decompressed {compressedLen} -> {decompressedLen} bytes");
 
         bytesConsumed = compressedLen;
         if (decompressedLen < decompressedData.Length) Array.Resize(ref decompressedData, decompressedLen);
         return decompressedData;
     }
 
-    private byte[] UnswizzleDXTTexture(byte[] src, int width, int height, uint format)
+    private byte[] UnswizzleDxtTexture(byte[] src, int width, int height, uint format)
     {
         var swapEndian = _currentOptions == null || !_currentOptions.SkipEndianSwap;
-        return TextureUtilities.UnswizzleMortonDXT(src, width, height, format, swapEndian);
+        return TextureUtilities.UnswizzleMortonDxt(src, width, height, format, swapEndian);
     }
 }

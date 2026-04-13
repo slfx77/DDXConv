@@ -7,7 +7,6 @@ namespace DDXConv;
 /// </summary>
 internal sealed class DdxChunkProcessor(bool verboseLogging)
 {
-    private readonly bool _verboseLogging = verboseLogging;
 
     /// <summary>
     ///     Delegate for unswizzling DXT texture data (Morton order to linear).
@@ -38,7 +37,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         ConversionOptions? options,
         uint magic)
     {
-        byte[] linearData = [];
+        byte[] linearData;
 
         // Check if we have two chunks or one chunk
         var isTwoChunkFormat = false;
@@ -50,7 +49,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
             isTwoChunkFormat = true;
             chunk1Size = (uint)decompressedChunks[0].Length;
             chunk2Size = (uint)decompressedChunks[1].Length;
-            if (_verboseLogging)
+            if (verboseLogging)
                 Console.WriteLine(
                     $"Using actual decompressed chunk boundaries: chunk1={chunk1Size}, chunk2={chunk2Size}");
         }
@@ -69,7 +68,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
             isTwoChunkFormat = true;
             chunk1Size = (uint)remainingSize;
             chunk2Size = mainSurfaceSize;
-            if (_verboseLogging)
+            if (verboseLogging)
                 Console.WriteLine($"Detected two-chunk format: atlas={chunk1Size} + main={chunk2Size}");
         }
 
@@ -101,7 +100,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         ConversionOptions? options,
         uint magic)
     {
-        if (_verboseLogging) Console.WriteLine($"Two-chunk format confirmed ({mainData.Length} bytes)");
+        if (verboseLogging) Console.WriteLine($"Two-chunk format confirmed ({mainData.Length} bytes)");
 
         var blockSize = TextureUtilities.GetBlockSize(texture.ActualFormat);
         var chunk1 = new byte[chunk1Size];
@@ -114,7 +113,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         var expectedMainBytes = TextureUtilities.CalculateMipSize(width, height, texture.ActualFormat);
         if (chunk2.Length < expectedMainBytes)
         {
-            if (_verboseLogging)
+            if (verboseLogging)
                 Console.WriteLine(
                     $"Padding truncated main surface from {chunk2.Length} to {expectedMainBytes} bytes ({chunk2.Length * 100 / expectedMainBytes}% complete)");
             var padded = new byte[expectedMainBytes];
@@ -139,16 +138,15 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         if (isSequentialMips)
         {
             // On-disk DDX: chunk1 = sequential independently-tiled mip surfaces.
-            if (_verboseLogging)
+            if (verboseLogging)
                 Console.WriteLine(
                     chunk1Size == expectedSequentialSize
                         ? $"Sequential tiled mips: chunk1={chunk1Size} matches expected={expectedSequentialSize}"
                         : $"Sequential tiled mips: chunk1={chunk1Size} stores {sequentialStoredMipLevels} mip level(s) as a prefix of expected={expectedSequentialSize}");
 
-            if (options is { NoUntileAtlas: true })
-                mips = chunk1; // raw tiled data requested
-            else
-                mips = ExtractSequentialTiledMips(chunk1, width, height, texture.ActualFormat, blockSize);
+            mips = options is { NoUntileAtlas: true }
+                ? chunk1 // raw tiled data requested
+                : ExtractSequentialTiledMips(chunk1, width, height, texture.ActualFormat, blockSize);
 
             texture.MipLevels = (byte)Math.Min(255, sequentialStoredMipLevels + 1);
         }
@@ -159,7 +157,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
                 blockSize, magic, outputPath, options);
         }
 
-        if (_verboseLogging) Console.WriteLine($"Extracted {mips.Length} bytes of mips");
+        if (verboseLogging) Console.WriteLine($"Extracted {mips.Length} bytes of mips");
 
         var actualMainSize = TextureUtilities.CalculateMipSize(width, height, texture.ActualFormat);
         var croppedMain = untiledMain.Length > actualMainSize
@@ -170,7 +168,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         Array.Copy(croppedMain, 0, linearData, 0, croppedMain.Length);
         Array.Copy(mips, 0, linearData, croppedMain.Length, mips.Length);
 
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine(
                 $"Combined {croppedMain.Length} bytes main surface + {mips.Length} bytes mips = {linearData.Length} total");
 
@@ -273,7 +271,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
             var blocksH = Math.Max(1, mipH / 4);
             var tiledBlocksW = (blocksW + 31) & ~31;
             var tiledBlocksH = (blocksH + 31) & ~31;
-            var untiled = TextureUtilities.UnswizzleMortonDXT(
+            var untiled = TextureUtilities.UnswizzleMortonDxt(
                 tiledSlice, tiledBlocksW * 4, tiledBlocksH * 4, format);
 
             // Crop tile padding → write only actual mip blocks
@@ -292,7 +290,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
                 }
             }
 
-            if (_verboseLogging)
+            if (verboseLogging)
                 Console.WriteLine(
                     $"  Mip {level}: {mipW}x{mipH} ({blocksW}x{blocksH} blocks, tiled {tiledBlocksW}x{tiledBlocksH}) = {tiledSize} bytes");
 
@@ -315,12 +313,12 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
 
         var tileData = new byte[tileSize];
         Array.Copy(tiledMipData, offset, tileData, 0, tileSize);
-        var untiledTile = TextureUtilities.UnswizzleMortonDXT(tileData, 128, 128, format);
+        var untiledTile = TextureUtilities.UnswizzleMortonDxt(tileData, 128, 128, format);
 
         var tailBaseW = Math.Max(1, baseWidth >> startLevel);
         var tailBaseH = Math.Max(1, baseHeight >> startLevel);
 
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine(
                 $"  Packed tail at level {startLevel}: {tailBaseW}x{tailBaseH} base, {totalLevels - startLevel} mips in tile");
 
@@ -410,7 +408,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
             }
         }
 
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine(
                 $"Atlas path: untiling chunk1 ({chunk1Size} bytes) as {atlasWidth}x{atlasHeight}");
 
@@ -444,7 +442,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
                 MipLevels = 1
             };
             WriteDdsFile(atlasPath, atlasTexture, untiledAtlas);
-            if (_verboseLogging) Console.WriteLine($"Saved untiled atlas to {atlasPath}");
+            if (verboseLogging) Console.WriteLine($"Saved untiled atlas to {atlasPath}");
         }
 
         return UnpackMipAtlas(untiledAtlas, new MipAtlasParams(
@@ -465,9 +463,9 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         string? outputPath,
         ConversionOptions? options)
     {
-        byte[] linearData = [];
+        byte[] linearData;
 
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine(
                 $"Single-chunk format detected ({mainData.Length} bytes, expected {mainSurfaceSize} for {width}x{height})");
 
@@ -515,7 +513,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         string? outputPath,
         ConversionOptions? options)
     {
-        if (_verboseLogging) Console.WriteLine($"Detected extra data: {mainData.Length} > {mainSurfaceSize}");
+        if (verboseLogging) Console.WriteLine($"Detected extra data: {mainData.Length} > {mainSurfaceSize}");
 
         if (width >= 512 && height >= 512)
             return ProcessLargeTextureSequentialMips(mainData, texture, width, height, mainSurfaceSize);
@@ -525,19 +523,18 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         var blocksWide = width / 4;
         var blocksHigh = height / 4;
         if (blocksWide < 32 && blocksHigh < 32)
-            return ProcessSubTileSequentialMips(mainData, texture, width, height, mainSurfaceSize);
+            return ProcessSubTileSequentialMips(mainData, texture, width, height);
 
         if (decompressedChunks.Count == 1 && mainData.Length == mainSurfaceSize * 2)
             return ProcessSingleChunkDoubleSize(mainData, texture, width, height, mainSurfaceSize, outputPath, options);
 
-        return ProcessSmallTextureHorizontalSplit(mainData, texture, width, height, mainSurfaceSize, outputPath,
-            options);
+        return ProcessSmallTextureHorizontalSplit(mainData, texture, width, height, mainSurfaceSize);
     }
 
     private byte[] ProcessSubTileSequentialMips(
-        byte[] mainData, D3DTextureInfo texture, int width, int height, uint mainSurfaceSize)
+        byte[] mainData, D3DTextureInfo texture, int width, int height)
     {
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine($"Sub-tile texture ({width}x{height}) - deswizzle with tile-padded buffer");
 
         // Pass the full tile-padded data to the Xenia deswizzle — sub-tile textures have
@@ -547,7 +544,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
 
         // The deswizzle output is exactly mainSurfaceSize bytes (blocksW * blocksH * blockSize)
         texture.MipLevels = 1;
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine($"Sub-tile: mip0 = {mip0Linear.Length} bytes");
         return mip0Linear;
     }
@@ -555,7 +552,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
     private byte[] ProcessLargeTextureSequentialMips(
         byte[] mainData, D3DTextureInfo texture, int width, int height, uint mainSurfaceSize)
     {
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine("Large texture detected - treating extra as sequential mip data");
 
         var mainSurfaceTiled = new byte[mainSurfaceSize];
@@ -582,7 +579,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
             mipHeight /= 2;
         }
 
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine($"Found {mipLevels} mip levels (main + {mipLevels - 1} mips)");
 
         var mipDataList = new List<byte[]> { mainSurfaceUntiled };
@@ -612,7 +609,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         }
 
         texture.MipLevels = (byte)mipLevels;
-        if (_verboseLogging) Console.WriteLine($"Set MipLevels to {texture.MipLevels}");
+        if (verboseLogging) Console.WriteLine($"Set MipLevels to {texture.MipLevels}");
         return linearData;
     }
 
@@ -622,7 +619,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
     {
         var mainSurfaceBytes = (int)mainSurfaceSize;
 
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine("Single chunk with 2x main surface - extracting first half as main");
 
         var mainSurfaceData = mainData[..mainSurfaceBytes];
@@ -631,14 +628,14 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         var atlasData = mainData[mainSurfaceBytes..];
         var processedAtlas = UnswizzleDxtTexture(atlasData, width, height, texture.ActualFormat);
 
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine(
                 $"Processed main: {processedMain.Length} bytes, atlas: {processedAtlas.Length} bytes");
 
         var mips = UnpackMipAtlas(processedAtlas, new MipAtlasParams(
             width, height, texture.ActualFormat,
             width, height, outputPath, options?.SaveMips ?? false));
-        if (_verboseLogging) Console.WriteLine($"Extracted {mips.Length} bytes of mips from atlas");
+        if (verboseLogging) Console.WriteLine($"Extracted {mips.Length} bytes of mips from atlas");
 
         var linearData = new byte[processedMain.Length + mips.Length];
         Array.Copy(processedMain, 0, linearData, 0, processedMain.Length);
@@ -657,17 +654,16 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         }
 
         texture.MipLevels = (byte)mipLevels;
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine(
                 $"Combined {processedMain.Length} bytes main + {mips.Length} bytes mips, MipLevels={texture.MipLevels}");
         return linearData;
     }
 
     private byte[] ProcessSmallTextureHorizontalSplit(
-        byte[] mainData, D3DTextureInfo texture, int width, int height, uint mainSurfaceSize,
-        string? outputPath, ConversionOptions? options)
+        byte[] mainData, D3DTextureInfo texture, int width, int height, uint mainSurfaceSize)
     {
-        if (_verboseLogging) Console.WriteLine("Attempting horizontal split for small texture");
+        if (verboseLogging) Console.WriteLine("Attempting horizontal split for small texture");
 
         var chunk1Width = 192;
         var chunk2Width = 64;
@@ -677,7 +673,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
             TextureUtilities.CalculateMipSize(chunk1Width, chunkHeight, texture.ActualFormat);
         var horizontalChunk2Size = mainData.Length - horizontalChunk1Size;
 
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine(
                 $"Trying horizontal split: {chunk1Width}x{chunkHeight} ({horizontalChunk1Size} bytes) + {chunk2Width}x{chunkHeight} ({horizontalChunk2Size} bytes)");
 
@@ -691,58 +687,58 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
             var chunk1Untiled = UnswizzleDxtTexture(chunk1Tiled, chunk1Width, chunkHeight, texture.ActualFormat);
             var chunk2Untiled = UnswizzleDxtTexture(chunk2Tiled, chunk2Width, chunkHeight, texture.ActualFormat);
 
-            if (_verboseLogging)
+            if (verboseLogging)
                 Console.WriteLine($"Untiled chunks: {chunk1Untiled.Length} + {chunk2Untiled.Length} bytes");
 
             var linearData = InterleaveHorizontalChunks(chunk1Untiled, chunk2Untiled, chunk1Width, chunk2Width,
                 chunkHeight, texture.ActualFormat);
-            if (_verboseLogging) Console.WriteLine($"Interleaved to {linearData.Length} bytes");
+            if (verboseLogging) Console.WriteLine($"Interleaved to {linearData.Length} bytes");
 
             texture.MipLevels = 1;
-            if (_verboseLogging) Console.WriteLine($"Set MipLevels to {texture.MipLevels}");
+            if (verboseLogging) Console.WriteLine($"Set MipLevels to {texture.MipLevels}");
             return linearData;
         }
 
         // Fallback: try untiling just the main surface portion
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine("Horizontal split didn't match, trying simple split at mainSurfaceSize");
 
         var mainSurfaceTiled = new byte[mainSurfaceSize];
         Array.Copy(mainData, 0, mainSurfaceTiled, 0, (int)mainSurfaceSize);
 
         var mainSurfaceUntiled = UnswizzleDxtTexture(mainSurfaceTiled, width, height, texture.ActualFormat);
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine($"Untiled main surface: {mainSurfaceUntiled.Length} bytes");
 
         var remainingSize = mainData.Length - (int)mainSurfaceSize;
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine($"Remaining data: {remainingSize} bytes (might be packed mips)");
 
         var expectedMip1Size = TextureUtilities.CalculateMipSize(width / 2, height / 2, texture.ActualFormat);
         if (remainingSize == expectedMip1Size)
         {
-            if (_verboseLogging)
+            if (verboseLogging)
                 Console.WriteLine("Remaining data matches 128x128 mip size, extracting...");
 
             var mipTiled = new byte[remainingSize];
             Array.Copy(mainData, (int)mainSurfaceSize, mipTiled, 0, remainingSize);
 
             var mipUntiled = UnswizzleDxtTexture(mipTiled, width / 2, height / 2, texture.ActualFormat);
-            if (_verboseLogging) Console.WriteLine($"Untiled mip: {mipUntiled.Length} bytes");
+            if (verboseLogging) Console.WriteLine($"Untiled mip: {mipUntiled.Length} bytes");
 
             var linearData = new byte[mainSurfaceUntiled.Length + mipUntiled.Length];
             Array.Copy(mainSurfaceUntiled, 0, linearData, 0, mainSurfaceUntiled.Length);
             Array.Copy(mipUntiled, 0, linearData, mainSurfaceUntiled.Length, mipUntiled.Length);
             texture.MipLevels = 2;
-            if (_verboseLogging) Console.WriteLine($"Set MipLevels to {texture.MipLevels}");
+            if (verboseLogging) Console.WriteLine($"Set MipLevels to {texture.MipLevels}");
             return linearData;
         }
 
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine("WARNING: Unknown mip layout, using only main surface");
 
         texture.MipLevels = 1;
-        if (_verboseLogging) Console.WriteLine($"Set MipLevels to {texture.MipLevels}");
+        if (verboseLogging) Console.WriteLine($"Set MipLevels to {texture.MipLevels}");
         return mainSurfaceUntiled;
     }
 
@@ -750,7 +746,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         byte[] mainData, D3DTextureInfo texture, int width, int height,
         uint mainSurfaceSize, string? outputPath, ConversionOptions? options)
     {
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine(
                 $"WARNING: Data size smaller than expected: {mainData.Length} < {mainSurfaceSize}");
 
@@ -762,10 +758,10 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
 
         // Too small or wrong dimensions - just untile what we have
         var untiled = UnswizzleDxtTexture(mainData, width, height, texture.ActualFormat);
-        if (_verboseLogging) Console.WriteLine($"Untiled to {untiled.Length} bytes");
+        if (verboseLogging) Console.WriteLine($"Untiled to {untiled.Length} bytes");
 
         texture.MipLevels = 1;
-        if (_verboseLogging) Console.WriteLine($"Set MipLevels to {texture.MipLevels}");
+        if (verboseLogging) Console.WriteLine($"Set MipLevels to {texture.MipLevels}");
         return untiled;
     }
 
@@ -773,7 +769,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         byte[] mainData, D3DTextureInfo texture, int width, int height,
         string? outputPath, ConversionOptions? options)
     {
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine(
                 $"Detected atlas-only data ({mainData.Length} bytes) - attempting mip extraction");
 
@@ -798,16 +794,16 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
             atlasHeight = height / 2;
         }
 
-        if (_verboseLogging) Console.WriteLine($"Using atlas dimensions: {atlasWidth}x{atlasHeight}");
+        if (verboseLogging) Console.WriteLine($"Using atlas dimensions: {atlasWidth}x{atlasHeight}");
 
         var untiledAtlas = UnswizzleDxtTexture(mainData, atlasWidth, atlasHeight, texture.ActualFormat);
-        if (_verboseLogging) Console.WriteLine($"Untiled atlas to {untiledAtlas.Length} bytes");
+        if (verboseLogging) Console.WriteLine($"Untiled atlas to {untiledAtlas.Length} bytes");
 
         var largestMipWidth = width / 2;
         var largestMipHeight = height / 2;
         var halfHeight = largestMipHeight / 2;
 
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine(
                 $"Reconstructing mips from atlas, largest: {largestMipWidth}x{largestMipHeight}");
 
@@ -830,7 +826,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         }
         else
         {
-            if (_verboseLogging)
+            if (verboseLogging)
                 Console.WriteLine(
                     $"Could not reconstruct mips (topHalf={topHalf?.Length}, bottomHalf={bottomHalf?.Length}, expected={expectedHalfSize}), output full atlas");
 
@@ -852,10 +848,10 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
                 DataFormat = texture.DataFormat
             };
             WriteDdsFile(atlasPath, atlasTexture, untiledAtlas);
-            if (_verboseLogging) Console.WriteLine($"Saved full atlas to {atlasPath}");
+            if (verboseLogging) Console.WriteLine($"Saved full atlas to {atlasPath}");
         }
 
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine(
                 $"Output {texture.Width}x{texture.Height} with {texture.MipLevels} mips (partial recovery from atlas-only data)");
 
@@ -877,7 +873,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         mipDataList.Add(mip0);
         totalMipSize += mip0.Length;
         mipCount++;
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine(
                 $"  Mip 0: {largestMipWidth}x{largestMipHeight} ({mip0.Length} bytes) - reconstructed from split halves");
 
@@ -899,7 +895,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
                     mipDataList.Add(mipData);
                     totalMipSize += mipData.Length;
                     mipCount++;
-                    if (_verboseLogging)
+                    if (verboseLogging)
                         Console.WriteLine(
                             $"  Mip {mipCount - 1}: {mipW}x{mipH} at ({mipX},{mipY}) ({mipData.Length} bytes)");
                 }
@@ -928,7 +924,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         texture.Height = (ushort)largestMipHeight;
         texture.MipLevels = (byte)mipCount;
 
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine(
                 $"Reconstructed {mipCount} mip levels, total {totalMipSize} bytes (partial recovery from atlas)");
 
@@ -945,7 +941,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         var couldBeMipAtlasForSmallerBase = halfWidth >= 64 && halfHeight >= 64 &&
                                             mainData.Length == mainSurfaceSize * 2;
 
-        if (couldBeMipAtlasForSmallerBase && _verboseLogging)
+        if (couldBeMipAtlasForSmallerBase && verboseLogging)
             Console.WriteLine(
                 $"Data size {mainData.Length} could be packed mip atlas for {halfWidth}x{halfHeight} in {width}x{height} tile space");
 
@@ -957,11 +953,11 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         if (couldBeMipAtlasForSmallerBase)
         {
             var mipAtlasResult = DdxMipAtlasUnpacker.TryExtractPackedMipAtlas(fullUntiled, width, height,
-                halfWidth, halfHeight, texture.ActualFormat, _verboseLogging);
+                halfWidth, halfHeight, texture.ActualFormat, verboseLogging);
 
             if (mipAtlasResult != null)
             {
-                if (_verboseLogging)
+                if (verboseLogging)
                     Console.WriteLine(
                         $"Successfully extracted packed mip atlas: {halfWidth}x{halfHeight} base with {mipAtlasResult.MipCount} mip levels");
 
@@ -975,7 +971,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
 
         if (!treatedAsMipAtlas)
         {
-            if (_verboseLogging) Console.WriteLine("Data is exactly 2x expected size - treating as two chunks");
+            if (verboseLogging) Console.WriteLine("Data is exactly 2x expected size - treating as two chunks");
 
             var chunk1TiledAlt = new byte[mainData.Length / 2];
             var chunk2TiledAlt = new byte[mainData.Length / 2];
@@ -984,20 +980,20 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
 
             var chunk1UntiledAlt = UnswizzleDxtTexture(chunk1TiledAlt, width, height, texture.ActualFormat);
             var chunk2UntiledAlt = UnswizzleDxtTexture(chunk2TiledAlt, width, height, texture.ActualFormat);
-            if (_verboseLogging)
+            if (verboseLogging)
                 Console.WriteLine(
                     $"Untiled chunks to {chunk1UntiledAlt.Length} + {chunk2UntiledAlt.Length} bytes");
 
             var mipsAlt = UnpackMipAtlas(chunk1UntiledAlt, new MipAtlasParams(
                 width, height, texture.ActualFormat,
                 width, height, outputPath, options?.SaveMips ?? false));
-            if (_verboseLogging) Console.WriteLine($"Extracted {mipsAlt.Length} bytes of mips from chunk 1");
+            if (verboseLogging) Console.WriteLine($"Extracted {mipsAlt.Length} bytes of mips from chunk 1");
 
             linearData = new byte[chunk2UntiledAlt.Length + mipsAlt.Length];
             Array.Copy(chunk2UntiledAlt, 0, linearData, 0, chunk2UntiledAlt.Length);
             Array.Copy(mipsAlt, 0, linearData, chunk2UntiledAlt.Length, mipsAlt.Length);
 
-            if (_verboseLogging)
+            if (verboseLogging)
                 Console.WriteLine(
                     $"Combined {chunk2UntiledAlt.Length} bytes main + {mipsAlt.Length} bytes mips = {linearData.Length} total");
         }
@@ -1009,7 +1005,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         byte[] mainData, D3DTextureInfo texture, int squareSize, int halfSize,
         string? outputPath, ConversionOptions? options)
     {
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine(
                 $"Processing as {squareSize}x{squareSize} texture with mips in chunk 1, main surface in chunk 2");
 
@@ -1020,13 +1016,13 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
 
         var chunk1Untiled = UnswizzleDxtTexture(chunk1Tiled, squareSize, squareSize, texture.ActualFormat);
         var chunk2Untiled = UnswizzleDxtTexture(chunk2Tiled, squareSize, squareSize, texture.ActualFormat);
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine($"Untiled chunks to {chunk1Untiled.Length} + {chunk2Untiled.Length} bytes");
 
         var mips = UnpackMipAtlas(chunk1Untiled, new MipAtlasParams(
             squareSize, squareSize, texture.ActualFormat,
             squareSize, squareSize, outputPath, options?.SaveMips ?? false));
-        if (_verboseLogging) Console.WriteLine($"Extracted {mips.Length} bytes of mips from chunk 1");
+        if (verboseLogging) Console.WriteLine($"Extracted {mips.Length} bytes of mips from chunk 1");
 
         var linearData = new byte[chunk2Untiled.Length + mips.Length];
         Array.Copy(chunk2Untiled, 0, linearData, 0, chunk2Untiled.Length);
@@ -1035,11 +1031,11 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         texture.Width = (ushort)squareSize;
         texture.Height = (ushort)squareSize;
         texture.MipLevels = TextureUtilities.CalculateMipLevels((uint)squareSize, (uint)squareSize);
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine(
                 $"Final texture: {texture.Width}x{texture.Height} with {texture.MipLevels} mip levels");
 
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine(
                 $"Total data: {linearData.Length} bytes ({chunk2Untiled.Length} main + {mips.Length} mips)");
 
@@ -1055,7 +1051,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         var mainSize128 = 8192;
         if (width == 128 && height == 128 && mainData.Length == atlasSize128 + mainSize128)
         {
-            if (_verboseLogging)
+            if (verboseLogging)
                 Console.WriteLine("Detected 128x128 texture with mip atlas (24576 + 8192 bytes)");
 
             var chunk1 = new byte[atlasSize128];
@@ -1066,20 +1062,20 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
             var untiledAtlas = UnswizzleDxtTexture(chunk1, 256, 192, texture.ActualFormat);
             var untiledMain = UnswizzleDxtTexture(chunk2, 128, 128, texture.ActualFormat);
 
-            if (_verboseLogging) Console.WriteLine($"Untiled atlas (256x192) to {untiledAtlas.Length} bytes");
-            if (_verboseLogging) Console.WriteLine($"Untiled main (128x128) to {untiledMain.Length} bytes");
+            if (verboseLogging) Console.WriteLine($"Untiled atlas (256x192) to {untiledAtlas.Length} bytes");
+            if (verboseLogging) Console.WriteLine($"Untiled main (128x128) to {untiledMain.Length} bytes");
 
             if (outputPath != null)
             {
                 var atlasPath = outputPath.Replace(".dds", "_atlas_untiled.bin");
                 File.WriteAllBytes(atlasPath, untiledAtlas);
-                if (_verboseLogging) Console.WriteLine($"Saved untiled atlas to {atlasPath}");
+                if (verboseLogging) Console.WriteLine($"Saved untiled atlas to {atlasPath}");
             }
 
             var mips = UnpackMipAtlas(untiledAtlas, new MipAtlasParams(
                 256, 192, texture.ActualFormat,
                 128, 128, outputPath, options?.SaveMips ?? false));
-            if (_verboseLogging) Console.WriteLine($"Extracted {mips.Length} bytes of mips from atlas");
+            if (verboseLogging) Console.WriteLine($"Extracted {mips.Length} bytes of mips from atlas");
 
             var linearData = new byte[untiledMain.Length + mips.Length];
             Array.Copy(untiledMain, 0, linearData, 0, untiledMain.Length);
@@ -1088,7 +1084,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
             texture.Width = 128;
             texture.Height = 128;
             texture.MipLevels = TextureUtilities.CalculateMipLevels(128, 128);
-            if (_verboseLogging)
+            if (verboseLogging)
                 Console.WriteLine(
                     $"Final: 128x128 with {texture.MipLevels} mip levels, {linearData.Length} bytes total");
             return linearData;
@@ -1103,11 +1099,11 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
             var fullUntiled = UnswizzleDxtTexture(mainData, width, height, texture.ActualFormat);
 
             var mipAtlasResult = DdxMipAtlasUnpacker.TryExtractPackedMipAtlas(fullUntiled, width, height, halfW,
-                halfH, texture.ActualFormat, _verboseLogging);
+                halfH, texture.ActualFormat, verboseLogging);
 
             if (mipAtlasResult is { MipCount: >= 2 } && mainData.Length != mainSurfaceSize)
             {
-                if (_verboseLogging)
+                if (verboseLogging)
                     Console.WriteLine(
                         $"Detected packed mip atlas: {halfW}x{halfH} base with {mipAtlasResult.MipCount} mip levels in {width}x{height} tile space");
 
@@ -1117,17 +1113,17 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
                 return mipAtlasResult.Data;
             }
 
-            if (_verboseLogging) Console.WriteLine($"Not a packed mip atlas, untiling as {width}x{height}");
+            if (verboseLogging) Console.WriteLine($"Not a packed mip atlas, untiling as {width}x{height}");
             texture.MipLevels = 1;
             return fullUntiled;
         }
 
         // Just untile as-is
         var untiled = UnswizzleDxtTexture(mainData, width, height, texture.ActualFormat);
-        if (_verboseLogging) Console.WriteLine($"Untiled to {untiled.Length} bytes");
+        if (verboseLogging) Console.WriteLine($"Untiled to {untiled.Length} bytes");
 
         texture.MipLevels = 1;
-        if (_verboseLogging) Console.WriteLine($"Set MipLevels to {texture.MipLevels}");
+        if (verboseLogging) Console.WriteLine($"Set MipLevels to {texture.MipLevels}");
         return untiled;
     }
 

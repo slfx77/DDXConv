@@ -5,7 +5,6 @@ namespace DDXConv;
 /// </summary>
 internal sealed class DdxHeaderWriter(bool verboseLogging)
 {
-    private readonly bool _verboseLogging = verboseLogging;
 
     internal D3DTextureInfo ParseD3DTextureHeaderWithDimensions(byte[] header, out ushort width, out ushort height)
     {
@@ -37,7 +36,7 @@ internal sealed class DdxHeaderWriter(bool verboseLogging)
         width = (ushort)((dword5 & 0x1FFF) + 1);
         height = (ushort)(((dword5 >> 13) & 0x1FFF) + 1);
 
-        if (_verboseLogging) Console.WriteLine($"Parsed from Format dword_5: 0x{dword5:X8} -> {width}x{height}");
+        if (verboseLogging) Console.WriteLine($"Parsed from Format dword_5: 0x{dword5:X8} -> {width}x{height}");
 
         // Now parse the rest using the old file analysis-based method
         return ParseD3DTextureHeader(header, width, height);
@@ -71,7 +70,7 @@ internal sealed class DdxHeaderWriter(bool verboseLogging)
 
         // For 0x82 textures, check DWORD[4] high byte to distinguish DXT1 from DXT5
         var actualFormat = (dword4 >> 24) & 0xFF;
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine(
                 $"Format detection: DataFormat=0x{info.DataFormat:X2}, DWORD[4]=0x{dword4:X8}, ActualFormat=0x{actualFormat:X2}");
 
@@ -111,7 +110,7 @@ internal sealed class DdxHeaderWriter(bool verboseLogging)
             texture.Width,
             texture.Height);
 
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine(
                 $"Writing DDS: Format=0x{texture.Format:X8}, ActualFormat=0x{texture.ActualFormat:X2}, DataFormat=0x{texture.DataFormat:X2}, MipLevels={texture.MipLevels}, HasAlpha={texture.HasAlpha}");
 
@@ -203,7 +202,7 @@ internal sealed class DdxHeaderWriter(bool verboseLogging)
         uint fourccCode,
         bool hasAlpha)
     {
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine(
                 $"WriteDdsPixelFormat: actualFormat=0x{actualFormat:X2}, fourccCode=0x{fourccCode:X8}, hasAlpha={hasAlpha}");
 

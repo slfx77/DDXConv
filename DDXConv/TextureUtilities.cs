@@ -22,7 +22,7 @@ public static class TextureUtilities
 
         if ((src.Length & 1) == 1)
         {
-            dst[src.Length - 1] = src[src.Length - 1];
+            dst[^1] = src[^1];
         }
 
         return dst;
@@ -275,7 +275,7 @@ public static class TextureUtilities
     ///     Xbox 360 tiling algorithm derived from Xenia emulator.
     ///     This is the proven implementation that successfully converts ~19,665 textures.
     /// </remarks>
-    public static byte[] UnswizzleMortonDXT(byte[] src, int width, int height, uint format,
+    public static byte[] UnswizzleMortonDxt(byte[] src, int width, int height, uint format,
         bool swapEndian = true)
     {
         var blockSize = GetBlockSize(format);

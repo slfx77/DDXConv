@@ -62,10 +62,9 @@ void WriteProgress(string status, string path, string? error = null)
     lock (consoleLock)
     {
         // Quote path to handle spaces; escape any quotes in error message
-        if (error != null)
-            Console.WriteLine($"[PROGRESS] {status} \"{path}\" {error.Replace("\"", "'")}");
-        else
-            Console.WriteLine($"[PROGRESS] {status} \"{path}\"");
+        Console.WriteLine(error != null
+            ? $"[PROGRESS] {status} \"{path}\" {error.Replace("\"", "'")}"
+            : $"[PROGRESS] {status} \"{path}\"");
     }
 }
 
@@ -132,7 +131,7 @@ if (Directory.Exists(inputPath))
             lock (failed)
             {
                 if (!failed.ContainsKey(ex.Message))
-                    failed[ex.Message] = new List<string>();
+                    failed[ex.Message] = [];
                 failed[ex.Message].Add(ddxFile);
             }
         }

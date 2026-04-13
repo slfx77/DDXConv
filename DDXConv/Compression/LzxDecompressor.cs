@@ -126,6 +126,7 @@ public sealed class LzxDecompressor : IDisposable
     // ================================================================
 
     // C: LZX_CreateContext (line 1898)
+    // ReSharper disable once UnusedParameter.Local — chunkSize reserved for future chunked decompression
     public LzxDecompressor(int windowSize = 131072, int chunkSize = 524288)
     {
         _windowSize = windowSize;
@@ -163,10 +164,7 @@ public sealed class LzxDecompressor : IDisposable
 
     public void Dispose()
     {
-        if (_window != null)
-        {
-            ArrayPool<byte>.Shared.Return(_window);
-        }
+        ArrayPool<byte>.Shared.Return(_window);
     }
 
     // C: ResetLzxState + ResetState + ClearTreeLengths + ResetIntelPos (lines 1838-1887)
@@ -654,9 +652,9 @@ public sealed class LzxDecompressor : IDisposable
 
         if (!_bitstream.HasAvailable(12)) return false;
 
-        _repeatOffset0 = _bitstream.ReadInt32LE();
-        _repeatOffset1 = _bitstream.ReadInt32LE();
-        _repeatOffset2 = _bitstream.ReadInt32LE();
+        _repeatOffset0 = _bitstream.ReadInt32Le();
+        _repeatOffset1 = _bitstream.ReadInt32Le();
+        _repeatOffset2 = _bitstream.ReadInt32Le();
         return true;
     }
 

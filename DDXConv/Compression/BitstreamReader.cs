@@ -209,7 +209,7 @@ internal sealed class BitstreamReader
     ///     Reads a 32-bit little-endian integer from raw input (bypassing the bitstream).
     ///     Used for uncompressed block headers.
     /// </summary>
-    public int ReadInt32LE()
+    public int ReadInt32Le()
     {
         var value = _inputBytes[InputPosition] | (_inputBytes[InputPosition + 1] << 8) |
                     (_inputBytes[InputPosition + 2] << 16) | (_inputBytes[InputPosition + 3] << 24);

@@ -7,8 +7,6 @@ namespace DDXConv;
 /// </summary>
 internal sealed class DdxMipAtlasUnpacker(bool verboseLogging)
 {
-    private readonly bool _verboseLogging = verboseLogging;
-
     /// <summary>
     ///     Callback for writing individual mip DDS files during atlas unpacking.
     /// </summary>
@@ -18,7 +16,7 @@ internal sealed class DdxMipAtlasUnpacker(bool verboseLogging)
     ///     Extract a rectangular region from atlas data.
     ///     Handles DXT block alignment.
     /// </summary>
-    internal static byte[]? ExtractAtlasRegion(byte[] atlasData, AtlasRegionParams p)
+    internal static byte[] ExtractAtlasRegion(byte[] atlasData, AtlasRegionParams p)
     {
         var blockSize = TextureUtilities.GetBlockSize(p.Format);
         var blockWidth = 4; // DXT block size in pixels
@@ -108,20 +106,19 @@ internal sealed class DdxMipAtlasUnpacker(bool verboseLogging)
         }
 
         // Mip 2: at (0, baseHeight) - bottom left
-        var mip2X = 0;
         var mip2Y = baseHeight;
         var mip2W = baseWidth / 4;
         var mip2H = baseHeight / 4;
 
-        if (mip2W >= 4 && mip2X + mip2W <= atlasWidth && mip2Y + mip2H <= atlasHeight)
+        if (mip2W >= 4 && mip2W <= atlasWidth && mip2Y + mip2H <= atlasHeight)
         {
             var mip2 = ExtractAtlasRegion(untiledData, new AtlasRegionParams(
-                atlasWidth, atlasHeight, mip2X, mip2Y, mip2W, mip2H, format));
+                atlasWidth, atlasHeight, 0, mip2Y, mip2W, mip2H, format));
             if (mip2 != null && mip2.Length == TextureUtilities.CalculateMipSize(mip2W, mip2H, format))
             {
                 mipDataList.Add(mip2);
                 totalMipSize += mip2.Length;
-                if (verbose) Console.WriteLine($"  Mip 2: {mip2W}x{mip2H} at ({mip2X},{mip2Y}), {mip2.Length} bytes");
+                if (verbose) Console.WriteLine($"  Mip 2: {mip2W}x{mip2H} at (0,{mip2Y}), {mip2.Length} bytes");
             }
         }
 
@@ -241,7 +238,7 @@ internal sealed class DdxMipAtlasUnpacker(bool verboseLogging)
         // These textures cannot have valid mips and don't need atlas unpacking
         if (mainWidth < 4 || mainHeight < 4 || width < 4 || height < 4)
         {
-            if (_verboseLogging)
+            if (verboseLogging)
                 Console.WriteLine(
                     $"UnpackMipAtlas: skipping for tiny texture ({mainWidth}x{mainHeight}), returning empty mips");
 
@@ -327,7 +324,7 @@ internal sealed class DdxMipAtlasUnpacker(bool verboseLogging)
         var outputOffset = 0;
 
         // Debug: log expected total size and per-mip sizes
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine($"UnpackMipAtlas: expected mip count={mipCount}, totalSize={totalSize} bytes");
 
         var debugW = actualWidth;
@@ -335,13 +332,13 @@ internal sealed class DdxMipAtlasUnpacker(bool verboseLogging)
         for (var m = 0; m < mipCount; m++)
         {
             var s = TextureUtilities.CalculateMipSize(debugW, debugH, format);
-            if (_verboseLogging) Console.WriteLine($"  mip {m}: {debugW}x{debugH} -> {s} bytes");
+            if (verboseLogging) Console.WriteLine($"  mip {m}: {debugW}x{debugH} -> {s} bytes");
 
             debugW = Math.Max(1, debugW / 2);
             debugH = Math.Max(1, debugH / 2);
         }
 
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine(
                 $"UnpackMipAtlas: width={width}, height={height}, actualTexture={actualWidth}x{actualHeight}, using {GetMipLayoutName(width, height)} mip layout");
 
@@ -355,7 +352,7 @@ internal sealed class DdxMipAtlasUnpacker(bool verboseLogging)
             // XG-computed layout for in-memory two-chunk atlas (handles all texture sizes)
             mipPositions = TextureUtilities.ComputeXgMipLayout(mainWidth, mainHeight, 1);
 
-            if (_verboseLogging)
+            if (verboseLogging)
                 Console.WriteLine(
                     $"UnpackMipAtlas: XG-computed layout for {mainWidth}x{mainHeight} ({mipPositions.Length} mips)");
         }
@@ -363,7 +360,7 @@ internal sealed class DdxMipAtlasUnpacker(bool verboseLogging)
         {
             // Special handling for 1024x1024 atlas with split mips (on-disk DDX)
             if (width == 1024 && height == 1024)
-                return Unpack1024x1024Atlas(atlasData, output, outputOffset, atlasWidthInBlocks,
+                return Unpack1024X1024Atlas(atlasData, output, outputOffset, atlasWidthInBlocks,
                     blockSize, format, saveMips, outputPath);
 
             mipPositions = GetMipPositions(width, height);
@@ -379,7 +376,7 @@ internal sealed class DdxMipAtlasUnpacker(bool verboseLogging)
 
             if (!mappingFits)
             {
-                if (_verboseLogging)
+                if (verboseLogging)
                     Console.WriteLine("UnpackMipAtlas: default layout doesn't fit atlas - using dynamic packing");
 
                 mipPositions = BuildDynamicMipPositions(actualFromMain, width, height, mainWidth, mainHeight,
@@ -398,14 +395,14 @@ internal sealed class DdxMipAtlasUnpacker(bool verboseLogging)
 
             if (mipWidth < 4 || mipHeight < 4) break;
 
-            if (_verboseLogging)
+            if (verboseLogging)
                 Console.WriteLine(
                     $"Extracting mip {mipLevel}: {mipWidth}x{mipHeight} from atlas position ({mipXInBlocks * 4}, {mipYInBlocks * 4})");
 
             // Skip main-level mip if main surface is separate
             if (mipWidth == mainWidth && mipHeight == mainHeight)
             {
-                if (_verboseLogging)
+                if (verboseLogging)
                     Console.WriteLine(
                         $"Skipping main-size mip {mipLevel} ({mipWidth}x{mipHeight}) because main surface is separate.");
 
@@ -426,7 +423,7 @@ internal sealed class DdxMipAtlasUnpacker(bool verboseLogging)
                 {
                     Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
                     usedBlocks[srcBlockY, srcBlockX] = true;
-                    if (saveMips && bx == 0 && by == 0 && _verboseLogging)
+                    if (saveMips && bx == 0 && by == 0 && verboseLogging)
                         Console.WriteLine(
                             $"Mip {mipLevel} first block srcBlock=({srcBlockX},{srcBlockY}) srcOffset={srcOffset} dstOffset={outputOffset}");
                 }
@@ -446,13 +443,13 @@ internal sealed class DdxMipAtlasUnpacker(bool verboseLogging)
         var mip0Size = TextureUtilities.CalculateMipSize(actualWidth, actualHeight, format);
         var desiredTailBytes = (int)totalSize - mip0Size;
 
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine(
                 $"UnpackMipAtlas: extracted so far {outputOffset} bytes, desired tail {desiredTailBytes} bytes");
 
         if (outputOffset < desiredTailBytes)
         {
-            if (_verboseLogging)
+            if (verboseLogging)
                 Console.WriteLine("UnpackMipAtlas: filling remaining mip tail from unused atlas blocks");
 
             for (var by = 0; by < height / 4 && outputOffset < desiredTailBytes; by++)
@@ -469,12 +466,12 @@ internal sealed class DdxMipAtlasUnpacker(bool verboseLogging)
                 }
             }
 
-            if (_verboseLogging)
+            if (verboseLogging)
                 Console.WriteLine(
                     $"UnpackMipAtlas: after filling, extracted {outputOffset} bytes (desired {desiredTailBytes})");
         }
 
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine($"UnpackMipAtlas: final {outputOffset} bytes (buffer {output.Length} bytes)");
 
         // Trim to actual extracted size
@@ -486,12 +483,12 @@ internal sealed class DdxMipAtlasUnpacker(bool verboseLogging)
     /// <summary>
     ///     Special handling for 1024x1024 atlas with split mips.
     /// </summary>
-    private byte[] Unpack1024x1024Atlas(byte[] atlasData, byte[] output, int outputOffset,
+    private byte[] Unpack1024X1024Atlas(byte[] atlasData, byte[] output, int outputOffset,
         int atlasWidthInBlocks, int blockSize, uint format, bool saveMips, string? outputPath)
     {
         // Mip 0 (512x512): split into top 512x256 at (0,0) and bottom 512x256 at (512,0)
         var mip0Start = outputOffset;
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine("Extracting mip 0 (split): 512x512 - top half at (0,0), bottom half at (512,0)");
 
         for (var by = 0; by < 64; by++)
@@ -522,7 +519,7 @@ internal sealed class DdxMipAtlasUnpacker(bool verboseLogging)
             SaveIndividualMip(output, mip0Start, mip0End - mip0Start, 512, 512, format, outputPath, 0);
 
         // Mip 1 (256x256): split top at (0,256), bottom at (256,256)
-        if (_verboseLogging)
+        if (verboseLogging)
             Console.WriteLine("Extracting mip 1 (split): 256x256 - top half at (0,256), bottom half at (256,256)");
 
         var mip1Start = outputOffset;
@@ -571,7 +568,7 @@ internal sealed class DdxMipAtlasUnpacker(bool verboseLogging)
             var mipWidthInBlocks = mipW / 4;
             var mipHeightInBlocks = mipH / 4;
 
-            if (_verboseLogging)
+            if (verboseLogging)
                 Console.WriteLine($"Extracting mip {i + 2}: {mipW}x{mipH} from atlas position ({mipX}, {mipY})");
 
             for (var by = 0; by < mipHeightInBlocks; by++)
@@ -683,11 +680,11 @@ internal sealed class DdxMipAtlasUnpacker(bool verboseLogging)
 
             var mipPath = outputPath.Replace(".dds", $"_mip{mipLevel}.dds");
             WriteDdsFileCallback?.Invoke(mipPath, mipTexture, mipData);
-            if (_verboseLogging) Console.WriteLine($"Saved mip {mipLevel} to {mipPath}");
+            if (verboseLogging) Console.WriteLine($"Saved mip {mipLevel} to {mipPath}");
         }
         catch (Exception ex)
         {
-            if (_verboseLogging) Console.WriteLine($"Failed to save mip {mipLevel}: {ex.Message}");
+            if (verboseLogging) Console.WriteLine($"Failed to save mip {mipLevel}: {ex.Message}");
         }
     }
 
