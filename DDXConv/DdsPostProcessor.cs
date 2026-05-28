@@ -99,6 +99,103 @@ public static class DdsPostProcessor
         if (bc4Path != null) File.Delete(bc4Path);
     }
 
+    /// <summary>
+    ///     In-memory variant of <see cref="MergeNormalSpecularMaps" />. Decodes a BC5 normal
+    ///     map's RG channels (signed XY), reconstructs Z via <c>sqrt(1 - x² - y²)</c>, optionally
+    ///     blends a BC4 specular map's red channel into the alpha slot (gray-128 fallback when
+    ///     no spec is supplied), and re-encodes as DXT5/BC3. This is the format vanilla
+    ///     Fallout NV uses for normal maps — the engine does not load BC5/ATI2 normal maps
+    ///     and renders whatever stale memory occupies the texture slot.
+    /// </summary>
+    public static byte[] MergeNormalSpecularMapsFromMemory(byte[] bc5Bytes, byte[]? bc4Bytes)
+    {
+        ArgumentNullException.ThrowIfNull(bc5Bytes);
+
+        var decoder = new BcDecoder();
+
+        using var bc5Stream = new MemoryStream(bc5Bytes);
+        using var normalImage = decoder.DecodeToImageRgba32(bc5Stream);
+
+        Image<Rgba32> specImage;
+        if (bc4Bytes is not null)
+        {
+            using var bc4Stream = new MemoryStream(bc4Bytes);
+            specImage = decoder.DecodeToImageRgba32(bc4Stream);
+        }
+        else
+        {
+            specImage = new Image<Rgba32>(normalImage.Width, normalImage.Height);
+            for (var y = 0; y < normalImage.Height; y++)
+            {
+                for (var x = 0; x < normalImage.Width; x++)
+                {
+                    specImage[x, y] = new Rgba32(128, 128, 128, 128);
+                }
+            }
+        }
+
+        try
+        {
+            if (normalImage.Width != specImage.Width || normalImage.Height != specImage.Height)
+            {
+                throw new InvalidOperationException(
+                    "Normal and specular images must have the same dimensions.");
+            }
+
+            using var combined = new Image<Rgba32>(normalImage.Width, normalImage.Height);
+            for (var y = 0; y < normalImage.Height; y++)
+            {
+                for (var x = 0; x < normalImage.Width; x++)
+                {
+                    var npx = normalImage.Frames[0].PixelBuffer[x, y];
+                    var spx = specImage.Frames[0].PixelBuffer[x, y];
+
+                    var nx = npx.R / 255f * 2f - 1f;
+                    var ny = npx.G / 255f * 2f - 1f;
+                    var nz2 = 1f - nx * nx - ny * ny;
+                    var nz = nz2 > 0f ? (float)Math.Sqrt(nz2) : 0f;
+
+                    var outR = (byte)MathF.Round((nx * 0.5f + 0.5f) * 255f);
+                    var outG = (byte)MathF.Round((ny * 0.5f + 0.5f) * 255f);
+                    var outB = (byte)MathF.Round((nz * 0.5f + 0.5f) * 255f);
+
+                    combined[x, y] = new Rgba32(outR, outG, outB, spx.R);
+                }
+            }
+
+            var encoder = new BcEncoder
+            {
+                OutputOptions =
+                {
+                    GenerateMipMaps = true,
+                    Format = CompressionFormat.Bc3,
+                    FileFormat = OutputFileFormat.Dds,
+                    Quality = CompressionQuality.Balanced
+                }
+            };
+
+            using var outStream = new MemoryStream();
+            encoder.EncodeToStream(combined, outStream);
+
+            var bytes = outStream.ToArray();
+            // KRAN marker at 0x44 — matches the file-path variant so downstream code that
+            // sniffs for the marker (DdsTextureDecoder, etc.) keeps working.
+            if (bytes.Length >= 0x48)
+            {
+                bytes[0x44] = (byte)'K';
+                bytes[0x45] = (byte)'R';
+                bytes[0x46] = (byte)'A';
+                bytes[0x47] = (byte)'N';
+            }
+
+            return bytes;
+        }
+        finally
+        {
+            specImage.Dispose();
+        }
+    }
+
     private static CompressionFormat GetCompressionFromPixelFormat(uint pf)
     {
         if (pf == DdsPixelFormat.Dxt1) return CompressionFormat.Bc1;
