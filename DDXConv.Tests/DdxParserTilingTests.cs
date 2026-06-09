@@ -151,6 +151,74 @@ public class DdxParserTilingTests
         Assert.Equal(0 * blocksX + 4, TextureUtilities.GetPcBlockIndex(0, 1, blocksX, blockSize, ati2Format));
     }
 
+    // === Non-square 3XDR tests ===
+    // On-disk FNV 3XDR textures are exclusively square (confirmed by scanning ~5k 3XDR files across
+    // the 360-final/proto/July builds plus dump-carved 3XDR — 0 non-square), so the golden-decode
+    // harness cannot exercise the non-square 3XDR untile path with real data. These unit tests guard
+    // that path directly: the macro-block bit-permutation must stay bijective on non-square grids, and
+    // the full untile loop (incl. the endian swap that Stage 4 vectorizes) must place every block.
+
+    [Theory]
+    [InlineData(16, 8, 8, 0u)]      // DXT1 (8-byte tile unit), 2:1 wide
+    [InlineData(8, 16, 8, 0u)]      // DXT1, 1:2 tall
+    [InlineData(16, 8, 16, 0u)]     // DXT5 (16-byte tile unit), 2:1 wide
+    [InlineData(8, 16, 16, 0u)]     // DXT5, 1:2 tall
+    [InlineData(16, 8, 16, 0x71u)]  // ATI2/BC5 (8-byte effective tiling), 2:1 wide
+    [InlineData(8, 16, 16, 0x71u)]  // ATI2/BC5, 1:2 tall
+    public void PcBlockIndex_IsBijective_NonSquare(int blocksX, int blocksY, int blockSize, uint format)
+    {
+        var seen = new HashSet<int>();
+        for (var y = 0; y < blocksY; y++)
+        {
+            for (var x = 0; x < blocksX; x++)
+            {
+                var pc = TextureUtilities.GetPcBlockIndex(x, y, blocksX, blockSize, format);
+                Assert.True(pc >= 0 && pc < blocksX * blocksY,
+                    $"PC index {pc} out of range from Xbox ({x},{y}) on {blocksX}x{blocksY}");
+                Assert.True(seen.Add(pc),
+                    $"Duplicate PC index {pc} from Xbox ({x},{y}) on {blocksX}x{blocksY}");
+            }
+        }
+
+        Assert.Equal(blocksX * blocksY, seen.Count);
+    }
+
+    [Fact]
+    public void UntileMacroBlocks_NonSquare_DXT5_PlacesEveryBlockWithSwap()
+    {
+        // 64x32 px DXT5 → 16x8 blocks (a 2:1 non-square grid that uses GetPcBlockIndex, not the
+        // ATI2 sub-tile path). Stamp each source block's index into its bytes, untile with endian
+        // swap, and assert every block landed (byte-swapped) at its mapped PC slot.
+        const int width = 64;
+        const int height = 32;
+        const int blockSize = 16;
+        var blocksX = (width + 3) / 4;
+        var blocksY = (height + 3) / 4;
+        var src = new byte[blocksX * blocksY * blockSize];
+        for (var i = 0; i < blocksX * blocksY; i++)
+        {
+            for (var b = 0; b < blockSize; b += 2)
+            {
+                src[i * blockSize + b] = (byte)(i >> 8);
+                src[i * blockSize + b + 1] = (byte)i;
+            }
+        }
+
+        var dst = TextureUtilities.UntileMacroBlocks(src, width, height, blockSize, swapEndian: true);
+
+        var placed = new HashSet<int>();
+        for (var i = 0; i < blocksX * blocksY; i++)
+        {
+            var pc = TextureUtilities.GetPcBlockIndex(i % blocksX, i / blocksX, blocksX, blockSize);
+            Assert.True(placed.Add(pc), $"Block {i} collided at PC slot {pc}");
+            // swapEndian reverses each 16-bit word, so the stamped (hi,lo) bytes come back (lo,hi).
+            Assert.Equal((byte)i, dst[pc * blockSize]);
+            Assert.Equal((byte)(i >> 8), dst[pc * blockSize + 1]);
+        }
+
+        Assert.Equal(blocksX * blocksY, placed.Count);
+    }
+
     // === Common tests ===
 
     [Fact]

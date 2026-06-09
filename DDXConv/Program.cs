@@ -18,6 +18,7 @@ if (opts.Contains("--help") || opts.Contains("-h"))
 {
     Console.WriteLine("Single File: DDXConv <input_file> [output_file] [options]");
     Console.WriteLine("      Batch: DDXConv <input_directory> <output_directory> [options]");
+    Console.WriteLine("     Verify: DDXConv --verify <ddx_directory> <manifest> [--write-golden] [--limit=N]");
     Console.WriteLine();
     Console.WriteLine("Standard Options:");
     Console.WriteLine("  --pc-friendly, -pc   Produce PC-ready normal maps (batch conversion only!)");
@@ -37,6 +38,39 @@ if (opts.Contains("--help") || opts.Contains("-h"))
     Console.WriteLine("  --no-swap            Do not perform endian swap on data");
     Console.WriteLine("  --verbose, -v        Enable verbose output");
     return;
+}
+
+// Decode non-regression gate: hash every DDX decode output and snapshot/compare against a manifest.
+if (opts.Contains("--verify"))
+{
+    if (positional.Count < 2)
+    {
+        Console.WriteLine("Usage: DDXConv --verify <ddx_directory> <manifest> [--write-golden] [--limit=N]");
+        Environment.Exit(2);
+    }
+
+    var writeGolden = opts.Contains("--write-golden");
+    var verifyLimit = 0;
+    var limitOpt = opts.FirstOrDefault(o => o.StartsWith("--limit=", StringComparison.OrdinalIgnoreCase));
+    if (limitOpt != null && !int.TryParse(limitOpt.AsSpan("--limit=".Length), out verifyLimit))
+    {
+        verifyLimit = 0;
+    }
+
+    // --time: decode-only throughput benchmark (no hashing, no manifest); needs only the ddx dir.
+    if (opts.Contains("--time"))
+    {
+        var repeat = 3;
+        var repeatOpt = opts.FirstOrDefault(o => o.StartsWith("--repeat=", StringComparison.OrdinalIgnoreCase));
+        if (repeatOpt != null && !int.TryParse(repeatOpt.AsSpan("--repeat=".Length), out repeat))
+        {
+            repeat = 3;
+        }
+
+        Environment.Exit(DdxVerifyHarness.TimeDecode(positional[0], verifyLimit, repeat));
+    }
+
+    Environment.Exit(DdxVerifyHarness.Run(positional[0], positional[1], writeGolden, verifyLimit));
 }
 
 var inputPath = positional[0];

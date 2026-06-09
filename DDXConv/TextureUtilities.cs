@@ -11,6 +11,13 @@ public static class TextureUtilities
     /// <summary>
     ///     Swap every 16-bit word in the data (Xbox 360 big-endian to PC little-endian).
     /// </summary>
+    /// <remarks>
+    ///     Kept scalar deliberately. A SIMD (<c>Vector128.Shuffle</c>) variant was benchmarked over
+    ///     the full on-disk DDX corpus and was net-neutral-to-slower: the DDX decode is dominated by
+    ///     LZX Huffman decoding, not the byte swap, so vectorizing the swap doesn't move wall-time,
+    ///     and the per-block form (see <see cref="CopyBlock" />) measured ~5% slower because each
+    ///     call swaps only one 8/16-byte block — too small to amortize the intrinsic setup.
+    /// </remarks>
     public static byte[] SwapEndian16(byte[] src)
     {
         var dst = new byte[src.Length];
@@ -361,6 +368,10 @@ public static class TextureUtilities
 
         if (swapEndian)
         {
+            // Scalar pairwise swap. NOT vectorized on purpose: this runs on one 8/16-byte block and
+            // is called once per block in the untile loops, so a per-call Vector128 slice/create/
+            // shuffle/copy measured ~5% SLOWER than this loop on the 3XDO untile path — the payload is
+            // too small to amortize SIMD setup, and the decode is LZX-bound, not swap-bound.
             for (var i = 0; i < blockSize; i += 2)
             {
                 dst[dstOffset + i] = src[srcOffset + i + 1];
