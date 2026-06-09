@@ -72,6 +72,27 @@ public class DdsPostProcessorMergeTests
         Assert.Equal((byte)'5', merged[87]);
     }
 
+    [Fact]
+    public void MergeNormalSpecularMapsFromMemory_MismatchedSpecularDimensions_FallsBackToGray()
+    {
+        // The specular companion is a DIFFERENT resolution than the normal map — the exact
+        // situation that arises when the companion lookup lands on a sibling that isn't the
+        // real `_s` map (e.g. barrierbulletholes_n 128x128 vs the 256x256 diffuse). The merge
+        // must discard the unusable spec and produce a valid DXT5 normal anyway, NOT throw and
+        // drop the normal to its un-loadable BC5/ATI2 original.
+        var bc5Bytes = BuildSyntheticBc5Normal(128, 128);
+        var mismatchedSpec = BuildSyntheticBc4Specular(256, 256);
+
+        var merged = DdsPostProcessor.MergeNormalSpecularMapsFromMemory(bc5Bytes, mismatchedSpec);
+
+        Assert.True(merged.Length >= 88);
+        // Still a DXT5 normal map (gray specular packed into alpha), at the normal's size.
+        Assert.Equal((byte)'D', merged[84]);
+        Assert.Equal((byte)'X', merged[85]);
+        Assert.Equal((byte)'T', merged[86]);
+        Assert.Equal((byte)'5', merged[87]);
+    }
+
     private static byte[] BuildSyntheticBc5Normal(int width, int height)
     {
         using var image = new Image<Rgba32>(width, height);

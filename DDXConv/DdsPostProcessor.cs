@@ -121,27 +121,26 @@ public static class DdsPostProcessor
         {
             using var bc4Stream = new MemoryStream(bc4Bytes);
             specImage = decoder.DecodeToImageRgba32(bc4Stream);
+
+            // A specular companion of a different resolution than the normal map can't be
+            // sampled per-texel, so it's unusable. This happens when the companion lookup
+            // lands on a sibling that isn't the real `_s` map (e.g. the diffuse). Discard it
+            // and fall back to neutral gray rather than failing the whole conversion — a
+            // failed merge would drop the normal map to its un-loadable BC5/ATI2 original,
+            // which is exactly the texture-swap bug this merge exists to prevent.
+            if (specImage.Width != normalImage.Width || specImage.Height != normalImage.Height)
+            {
+                specImage.Dispose();
+                specImage = CreateNeutralSpecular(normalImage.Width, normalImage.Height);
+            }
         }
         else
         {
-            specImage = new Image<Rgba32>(normalImage.Width, normalImage.Height);
-            for (var y = 0; y < normalImage.Height; y++)
-            {
-                for (var x = 0; x < normalImage.Width; x++)
-                {
-                    specImage[x, y] = new Rgba32(128, 128, 128, 128);
-                }
-            }
+            specImage = CreateNeutralSpecular(normalImage.Width, normalImage.Height);
         }
 
         try
         {
-            if (normalImage.Width != specImage.Width || normalImage.Height != specImage.Height)
-            {
-                throw new InvalidOperationException(
-                    "Normal and specular images must have the same dimensions.");
-            }
-
             using var combined = new Image<Rgba32>(normalImage.Width, normalImage.Height);
             for (var y = 0; y < normalImage.Height; y++)
             {
@@ -194,6 +193,25 @@ public static class DdsPostProcessor
         {
             specImage.Dispose();
         }
+    }
+
+    /// <summary>
+    ///     Build a neutral (gray-128) specular image at the given dimensions. Used when no
+    ///     specular companion is supplied, or when the supplied one is the wrong resolution
+    ///     to merge into the normal map's alpha channel.
+    /// </summary>
+    private static Image<Rgba32> CreateNeutralSpecular(int width, int height)
+    {
+        var image = new Image<Rgba32>(width, height);
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                image[x, y] = new Rgba32(128, 128, 128, 128);
+            }
+        }
+
+        return image;
     }
 
     private static CompressionFormat GetCompressionFromPixelFormat(uint pf)
