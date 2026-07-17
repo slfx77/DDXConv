@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -24,8 +25,10 @@ public static class DdxVerifyHarness
     // the key, so error-message wording changes don't show up as spurious diffs.
     private const string FailSentinel = "__FAIL__";
 
-    /// <summary>Returns 0 on success (golden written, or verify with no mismatches), 1 on a verify
-    /// mismatch, 2 on a usage/IO error.</summary>
+    /// <summary>
+    ///     Returns 0 on success (golden written, or verify with no mismatches), 1 on a verify
+    ///     mismatch, 2 on a usage/IO error.
+    /// </summary>
     public static int Run(string ddxDir, string manifestPath, bool writeGolden, int limit)
     {
         if (!Directory.Exists(ddxDir))
@@ -102,9 +105,10 @@ public static class DdxVerifyHarness
             Directory.CreateDirectory(dir);
         }
 
-        using (var w = new StreamWriter(manifestPath, append: false))
+        using (var w = new StreamWriter(manifestPath, false))
         {
-            w.WriteLine($"# DDXConv decode golden manifest — {results.Count} entries — format: relpath|sha256(dds)-or-__FAIL__");
+            w.WriteLine(
+                $"# DDXConv decode golden manifest — {results.Count} entries — format: relpath|sha256(dds)-or-__FAIL__");
             foreach (var kv in results.OrderBy(static k => k.Key, StringComparer.Ordinal))
             {
                 w.WriteLine($"{kv.Key}|{kv.Value}");
@@ -184,8 +188,10 @@ public static class DdxVerifyHarness
         return mismatched == 0 ? 0 : 1;
     }
 
-    /// <summary>Decode-only throughput benchmark (no hashing) — measures the DDX→DDS decode path
-    /// itself. Bytes are pre-loaded so only CPU decode is timed. Returns 0.</summary>
+    /// <summary>
+    ///     Decode-only throughput benchmark (no hashing) — measures the DDX→DDS decode path
+    ///     itself. Bytes are pre-loaded so only CPU decode is timed. Returns 0.
+    /// </summary>
     public static int TimeDecode(string ddxDir, int limit, int repeat)
     {
         if (!Directory.Exists(ddxDir))
@@ -217,16 +223,26 @@ public static class DdxVerifyHarness
                 inputs.Add(b);
                 inBytes += b.Length;
             }
-            catch { /* skip unreadable */ }
+            catch
+            {
+                /* skip unreadable */
+            }
         }
 
-        Console.WriteLine($"Decode timing: {inputs.Count:N0} DDX ({inBytes / (1024.0 * 1024.0):N1} MB in), repeat={Math.Max(1, repeat)}");
+        Console.WriteLine(
+            $"Decode timing: {inputs.Count:N0} DDX ({inBytes / (1024.0 * 1024.0):N1} MB in), repeat={Math.Max(1, repeat)}");
 
         // Warm up the JIT + any one-time tables, untimed.
         var warm = Math.Min(inputs.Count, 32);
         for (var i = 0; i < warm; i++)
         {
-            try { _ = new DdxParser().ConvertDdxToDds(inputs[i]); } catch { }
+            try
+            {
+                _ = new DdxParser().ConvertDdxToDds(inputs[i]);
+            }
+            catch
+            {
+            }
         }
 
         var bestMs = double.MaxValue;
@@ -234,7 +250,7 @@ public static class DdxVerifyHarness
         for (var pass = 0; pass < Math.Max(1, repeat); pass++)
         {
             long passOut = 0;
-            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var sw = Stopwatch.StartNew();
             foreach (var data in inputs)
             {
                 try
@@ -245,7 +261,10 @@ public static class DdxVerifyHarness
                         passOut += dds.Length;
                     }
                 }
-                catch { /* count as 0 */ }
+                catch
+                {
+                    /* count as 0 */
+                }
             }
 
             sw.Stop();
@@ -263,22 +282,9 @@ public static class DdxVerifyHarness
         return 0;
     }
 
-    private static string Short(string hash) => hash.Length <= 12 ? hash : hash[..12];
-
-    // ── Coverage instrumentation ──────────────────────────────────────────────────────────────
-    // Confirms the corpus actually exercises every code path a DDX/LZX change can touch: both DDX
-    // container formats (3XDO Morton-swizzled vs 3XDR engine-tiled macro-block — different untile
-    // math), both square and non-square dimensions (block-grid offset math differs), and the range
-    // of block formats. Parsed from the input magic + the decoded DDS header (so it costs nothing
-    // beyond the decode we already do).
-
-    private struct FileFacts
+    private static string Short(string hash)
     {
-        public string Magic;     // "3XDO" / "3XDR" / "other"
-        public string Format;    // DDS fourCC or "DX10:<n>"
-        public int Width;
-        public int Height;
-        public bool Ok;
+        return hash.Length <= 12 ? hash : hash[..12];
     }
 
     private static string ReadMagic(byte[] ddx)
@@ -361,5 +367,21 @@ public static class DdxVerifyHarness
             var distinctSizes = ok.Select(static f => (f.Width, f.Height)).Distinct().Count();
             Console.WriteLine($"  distinct (w,h) pairs: {distinctSizes:N0}");
         }
+    }
+
+    // ── Coverage instrumentation ──────────────────────────────────────────────────────────────
+    // Confirms the corpus actually exercises every code path a DDX/LZX change can touch: both DDX
+    // container formats (3XDO Morton-swizzled vs 3XDR engine-tiled macro-block — different untile
+    // math), both square and non-square dimensions (block-grid offset math differs), and the range
+    // of block formats. Parsed from the input magic + the decoded DDS header (so it costs nothing
+    // beyond the decode we already do).
+
+    private struct FileFacts
+    {
+        public string Magic; // "3XDO" / "3XDR" / "other"
+        public string Format; // DDS fourCC or "DX10:<n>"
+        public int Width;
+        public int Height;
+        public bool Ok;
     }
 }

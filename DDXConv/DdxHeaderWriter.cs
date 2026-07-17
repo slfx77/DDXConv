@@ -5,7 +5,6 @@ namespace DDXConv;
 /// </summary>
 internal sealed class DdxHeaderWriter(bool verboseLogging)
 {
-
     internal D3DTextureInfo ParseD3DTextureHeaderWithDimensions(byte[] header, out ushort width, out ushort height)
     {
         // Xbox 360 D3D texture header structure (52 bytes starting at file offset 0x10):

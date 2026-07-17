@@ -7,7 +7,6 @@ namespace DDXConv;
 /// </summary>
 internal sealed class DdxChunkProcessor(bool verboseLogging)
 {
-
     /// <summary>
     ///     Delegate for unswizzling DXT texture data (Morton order to linear).
     /// </summary>
