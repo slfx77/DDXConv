@@ -9,9 +9,15 @@ namespace DDXConv;
 ///     predicate, not a family of special cases keyed on shape.
 /// </summary>
 internal readonly record struct SurfaceLayout(
-    int BlocksW, int BlocksH, int TiledBlocksW, int TiledBlocksH,
-    int LinearMip0Bytes, int TiledMip0Bytes,
-    int TailBaseLevel, int OriginXBlocks, int OriginYBlocks,
+    int BlocksW,
+    int BlocksH,
+    int TiledBlocksW,
+    int TiledBlocksH,
+    int LinearMip0Bytes,
+    int TiledMip0Bytes,
+    int TailBaseLevel,
+    int OriginXBlocks,
+    int OriginYBlocks,
     bool IsBlockFormat)
 {
     /// <summary>

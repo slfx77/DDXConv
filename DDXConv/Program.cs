@@ -1,3 +1,4 @@
+using System.Globalization;
 using DDXConv;
 
 if (args.Length < 1)
@@ -81,7 +82,7 @@ if (opts.Contains("--verify"))
     }
 
     var maeModeText = OptionValue(opts, "--mae=") ?? "changed";
-    if (!Enum.TryParse<DdxVerifyHarness.MaeMode>(maeModeText, ignoreCase: true, out var maeMode))
+    if (!Enum.TryParse<DdxVerifyHarness.MaeMode>(maeModeText, true, out var maeMode))
     {
         Console.WriteLine($"Unknown --mae mode '{maeModeText}' (expected changed, all, or off).");
         Environment.Exit(2);
@@ -90,8 +91,8 @@ if (opts.Contains("--verify"))
     var maeTolerance = 0.25;
     var toleranceText = OptionValue(opts, "--mae-tolerance=");
     if (toleranceText != null &&
-        !double.TryParse(toleranceText, System.Globalization.NumberStyles.Float,
-            System.Globalization.CultureInfo.InvariantCulture, out maeTolerance))
+        !double.TryParse(toleranceText, NumberStyles.Float,
+            CultureInfo.InvariantCulture, out maeTolerance))
     {
         Console.WriteLine($"Invalid --mae-tolerance '{toleranceText}'.");
         Environment.Exit(2);

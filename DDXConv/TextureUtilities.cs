@@ -562,7 +562,7 @@ public static class TextureUtilities
         var log2Bpp = (uint)(blockSize / 4 + ((blockSize / 2) >> (blockSize / 4)));
         var rowOffset = TiledOffset2DRow((uint)blockY, (uint)pitchBlocks, log2Bpp);
         var element = TiledOffset2DColumn((uint)blockX, (uint)blockY, log2Bpp, rowOffset) >> (int)log2Bpp;
-        return (long)element * blockSize;
+        return element * blockSize;
     }
 
     // Xbox 360 tiling functions from Xenia emulator

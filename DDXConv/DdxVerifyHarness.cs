@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -19,12 +20,6 @@ namespace DDXConv;
 /// </summary>
 public static class DdxVerifyHarness
 {
-    // Stable sentinel recorded for any file whose decode throws or yields empty output. A
-    // hash<->__FAIL__ transition (a file that used to decode now throwing, or vice versa) is itself
-    // a regression the verify pass reports. The specific exception text is intentionally not part of
-    // the key, so error-message wording changes don't show up as spurious diffs.
-    private const string FailSentinel = "__FAIL__";
-
     /// <summary>How much of the corpus the MAE oracle measures during a run.</summary>
     public enum MaeMode
     {
@@ -37,16 +32,11 @@ public static class DdxVerifyHarness
         All
     }
 
-    /// <summary>Oracle configuration for <see cref="Run" />; inert unless a PC reference tree is given.</summary>
-    public sealed record OracleOptions
-    {
-        public string? PcReferenceRoot { get; init; }
-        public MaeMode Mode { get; init; } = MaeMode.Changed;
-        public string? ReportPath { get; init; }
-
-        /// <summary>A changed file whose worst-mip MAE worsens by more than this fails the verify.</summary>
-        public double Tolerance { get; init; } = 0.25;
-    }
+    // Stable sentinel recorded for any file whose decode throws or yields empty output. A
+    // hash<->__FAIL__ transition (a file that used to decode now throwing, or vice versa) is itself
+    // a regression the verify pass reports. The specific exception text is intentionally not part of
+    // the key, so error-message wording changes don't show up as spurious diffs.
+    private const string FailSentinel = "__FAIL__";
 
     /// <summary>
     ///     Returns 0 on success, 1 on a verify regression, 2 on a usage/IO error. Without a PC
@@ -373,7 +363,7 @@ public static class DdxVerifyHarness
                     }
                 }
 
-                report?.WriteLine(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                report?.WriteLine(string.Create(CultureInfo.InvariantCulture,
                     $"{rel},{cls},{Field(baseline?.Mip0Rgb)},{Field(baseline?.WorstRgb)},{Field(baseline?.WorstAlpha)},{Field(now?.Mip0Rgb)},{Field(now?.WorstRgb)},{Field(now?.WorstAlpha)}"));
             }
         }
@@ -462,7 +452,7 @@ public static class DdxVerifyHarness
     {
         return value is null or < 0
             ? string.Empty
-            : value.Value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+            : value.Value.ToString("0.###", CultureInfo.InvariantCulture);
     }
 
     /// <summary>
@@ -828,11 +818,16 @@ public static class DdxVerifyHarness
         Console.WriteLine("Data integrity (untiling must be a permutation of the block set):");
         var lossy = withDiagnostics.Where(static f => !f.Diagnostics.IsLossless).ToList();
         Console.WriteLine($"  files losing data:                  {lossy.Count:N0} / {withDiagnostics.Count:N0}");
-        Console.WriteLine($"    skipped block copies:             {withDiagnostics.Count(static f => f.Diagnostics.SkippedBlockCopies > 0):N0} files");
-        Console.WriteLine($"    unwritten destination blocks:     {withDiagnostics.Count(static f => f.Diagnostics.UnwrittenDestinationBlocks > 0):N0} files");
-        Console.WriteLine($"    duplicate destination writes:     {withDiagnostics.Count(static f => f.Diagnostics.DuplicateDestinationWrites > 0):N0} files");
-        Console.WriteLine($"    padded (short) main surface:      {withDiagnostics.Count(static f => f.Diagnostics.PaddedBytes > 0):N0} files");
-        Console.WriteLine($"    truncated reads:                  {withDiagnostics.Count(static f => f.Diagnostics.TruncatedReads > 0):N0} files");
+        Console.WriteLine(
+            $"    skipped block copies:             {withDiagnostics.Count(static f => f.Diagnostics.SkippedBlockCopies > 0):N0} files");
+        Console.WriteLine(
+            $"    unwritten destination blocks:     {withDiagnostics.Count(static f => f.Diagnostics.UnwrittenDestinationBlocks > 0):N0} files");
+        Console.WriteLine(
+            $"    duplicate destination writes:     {withDiagnostics.Count(static f => f.Diagnostics.DuplicateDestinationWrites > 0):N0} files");
+        Console.WriteLine(
+            $"    padded (short) main surface:      {withDiagnostics.Count(static f => f.Diagnostics.PaddedBytes > 0):N0} files");
+        Console.WriteLine(
+            $"    truncated reads:                  {withDiagnostics.Count(static f => f.Diagnostics.TruncatedReads > 0):N0} files");
 
         var totalBlocks = withDiagnostics.Sum(static f => f.Diagnostics.SurfaceBlockTotal);
         var unwritten = withDiagnostics.Sum(static f => (long)f.Diagnostics.UnwrittenDestinationBlocks);
@@ -848,7 +843,8 @@ public static class DdxVerifyHarness
                      .OrderByDescending(static g => g.Count()))
         {
             var bad = g.Count(static f => !f.Diagnostics.IsLossless);
-            Console.WriteLine($"    {g.Key,-28} {g.Count(),8:N0} files, {bad,8:N0} lossy ({(double)bad / g.Count() * 100:F1}%)");
+            Console.WriteLine(
+                $"    {g.Key,-28} {g.Count(),8:N0} files, {bad,8:N0} lossy ({(double)bad / g.Count() * 100:F1}%)");
         }
 
         foreach (var f in lossy.Take(10))
@@ -859,6 +855,17 @@ public static class DdxVerifyHarness
                 $"dup={d.DuplicateDestinationWrites} padded={d.PaddedBytes} truncated={d.TruncatedReads}" +
                 (d.TruncationReasons.Count > 0 ? $" [{d.TruncationReasons[0]}]" : string.Empty));
         }
+    }
+
+    /// <summary>Oracle configuration for <see cref="Run" />; inert unless a PC reference tree is given.</summary>
+    public sealed record OracleOptions
+    {
+        public string? PcReferenceRoot { get; init; }
+        public MaeMode Mode { get; init; } = MaeMode.Changed;
+        public string? ReportPath { get; init; }
+
+        /// <summary>A changed file whose worst-mip MAE worsens by more than this fails the verify.</summary>
+        public double Tolerance { get; init; } = 0.25;
     }
 
     // ── Coverage instrumentation ──────────────────────────────────────────────────────────────

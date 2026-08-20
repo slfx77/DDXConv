@@ -129,7 +129,8 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         // On-disk DDX stores mips as sequential tile-aligned surfaces (Xenia model),
         // and some files only include a prefix of the mip chain. Memory dumps store
         // mips as an XG atlas (GPU in-memory layout).
-        var expectedSequentialSize = TextureUtilities.ComputeSequentialTiledMipTotal(width, height, texture.ActualFormat);
+        var expectedSequentialSize =
+            TextureUtilities.ComputeSequentialTiledMipTotal(width, height, texture.ActualFormat);
         var sequentialStoredMipLevels =
             magic != 0x52445833
                 ? CountSequentialStoredMipLevels(width, height, texture.ActualFormat, blockSize, (int)chunk1Size)
@@ -544,10 +545,11 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
                 using var output = new MemoryStream();
                 output.Write(mip0Linear, 0, mip0Linear.Length);
                 ExtractPackedTailMips(mainData, 0, width, height,
-                    startLevel: 1, totalLevels, texture.ActualFormat, blockSize, output, tailBaseLevel: 0);
+                    1, totalLevels, texture.ActualFormat, blockSize, output, 0);
                 texture.MipLevels = (byte)Math.Min(255, totalLevels);
                 if (verboseLogging)
-                    Console.WriteLine($"Tail-base-0 chain: extracted {totalLevels - 1} mip level(s) from the shared surface");
+                    Console.WriteLine(
+                        $"Tail-base-0 chain: extracted {totalLevels - 1} mip level(s) from the shared surface");
 
                 RecordUnrecognizedTrailing(mainData.Length - layout.TiledMip0Bytes, width, height, options);
                 return output.ToArray();
@@ -572,7 +574,8 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
                 texture.ActualFormat, blockSize);
             texture.MipLevels = (byte)Math.Min(255, storedMips + 1);
             if (verboseLogging)
-                Console.WriteLine($"Trailing {trailingLength} bytes = sequential tiled chain of {storedMips} mip level(s)");
+                Console.WriteLine(
+                    $"Trailing {trailingLength} bytes = sequential tiled chain of {storedMips} mip level(s)");
             return Combine(mip0Linear, mips);
         }
 
@@ -762,7 +765,8 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         options?.Diagnostics?.RecordTruncatedRead(
             $"unrecognized trailing {trailingLength} bytes after mip0 ({width}x{height})");
         if (verboseLogging)
-            Console.WriteLine($"WARNING: Unknown mip layout ({trailingLength} trailing bytes), using only main surface");
+            Console.WriteLine(
+                $"WARNING: Unknown mip layout ({trailingLength} trailing bytes), using only main surface");
 
         texture.MipLevels = 1;
         return mainSurfaceUntiled;
@@ -1271,5 +1275,4 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         if (verboseLogging) Console.WriteLine($"Set MipLevels to {texture.MipLevels}");
         return untiled;
     }
-
 }

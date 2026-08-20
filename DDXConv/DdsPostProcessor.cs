@@ -16,8 +16,8 @@ public static class DdsPostProcessor
     // Delete specular map after conversion
     public static void MergeNormalSpecularMaps(string bc5Path, string? bc4Path)
     {
-        byte[] bc5Bytes = File.ReadAllBytes(bc5Path);
-        byte[]? bc4Bytes = bc4Path != null ? File.ReadAllBytes(bc4Path) : null;
+        var bc5Bytes = File.ReadAllBytes(bc5Path);
+        var bc4Bytes = bc4Path != null ? File.ReadAllBytes(bc4Path) : null;
 
         var merged = MergeNormalSpecularMapsFromMemory(bc5Bytes, bc4Bytes);
         File.WriteAllBytes(bc5Path, merged);
@@ -33,14 +33,14 @@ public static class DdsPostProcessor
     ///     vanilla corpus (B ≈ 255 regardless of slope; a sqrt(1-x²-y²) reconstruction sags
     ///     toward 128 on steep texels and renders as dark quads along crevices).
     ///     <para>
-    ///     With a usable BC4 specular companion, the output is DXT5/BC3 with the companion's
-    ///     red channel in alpha — FNV reads the per-texel specular mask from normal-map alpha.
-    ///     With NO usable companion the output is DXT1/BC1 with no alpha channel at all: that
-    ///     is vanilla's encoding for "this material has no specular" (397/400 of the same
-    ///     no-companion textures ship as DXT1 on PC), and the engine treats an alpha-less
-    ///     normal map as specular-off even when the shape's SF_Specular flag is set. The old
-    ///     neutral-gray-128 alpha fallback turned "no specular" into "50% gloss everywhere"
-    ///     (the Doc Mitchell shiny-outfit bug).
+    ///         With a usable BC4 specular companion, the output is DXT5/BC3 with the companion's
+    ///         red channel in alpha — FNV reads the per-texel specular mask from normal-map alpha.
+    ///         With NO usable companion the output is DXT1/BC1 with no alpha channel at all: that
+    ///         is vanilla's encoding for "this material has no specular" (397/400 of the same
+    ///         no-companion textures ship as DXT1 on PC), and the engine treats an alpha-less
+    ///         normal map as specular-off even when the shape's SF_Specular flag is set. The old
+    ///         neutral-gray-128 alpha fallback turned "no specular" into "50% gloss everywhere"
+    ///         (the Doc Mitchell shiny-outfit bug).
     ///     </para>
     /// </summary>
     public static byte[] MergeNormalSpecularMapsFromMemory(byte[] bc5Bytes, byte[]? bc4Bytes)

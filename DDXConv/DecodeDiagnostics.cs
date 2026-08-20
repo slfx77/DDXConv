@@ -48,7 +48,10 @@ public sealed class DecodeDiagnostics
     public bool IsLossless =>
         SkippedBlockCopies == 0 && UnwrittenDestinationBlocks == 0 && DuplicateDestinationWrites == 0;
 
-    public void RecordSkippedBlockCopy() => SkippedBlockCopies++;
+    public void RecordSkippedBlockCopy()
+    {
+        SkippedBlockCopies++;
+    }
 
     public void RecordPadding(long bytes)
     {
