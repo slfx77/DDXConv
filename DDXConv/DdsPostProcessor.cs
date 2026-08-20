@@ -1,4 +1,4 @@
-﻿using BCnEncoder.Decoder;
+using BCnEncoder.Decoder;
 using BCnEncoder.Encoder;
 using BCnEncoder.ImageSharp;
 using BCnEncoder.Shared;
@@ -12,100 +12,36 @@ namespace DDXConv;
 public static class DdsPostProcessor
 {
     // Load BC5 normal map, process to convert from 2-channel to 3-channel normal map, load BC4 specular map, use as alpha
-    // Save DXT5 format DDS to output path
+    // Save DXT5 format DDS to output path (DXT1 when no usable specular companion exists)
     // Delete specular map after conversion
     public static void MergeNormalSpecularMaps(string bc5Path, string? bc4Path)
     {
-        // Decode inputs to Image<Rgba32> using BCnEncoder's decoder helpers.
-        var decoder = new BcDecoder();
+        byte[] bc5Bytes = File.ReadAllBytes(bc5Path);
+        byte[]? bc4Bytes = bc4Path != null ? File.ReadAllBytes(bc4Path) : null;
 
-        using var bc5Fs = File.OpenRead(bc5Path);
-        using var normalImage = decoder.DecodeToImageRgba32(bc5Fs);
-
-        var specImage = new Image<Rgba32>(normalImage.Width, normalImage.Height);
-
-        if (bc4Path != null)
-        {
-            using var bc4Fs = File.OpenRead(bc4Path);
-            specImage = decoder.DecodeToImageRgba32(bc4Fs);
-            bc4Fs.Close();
-        }
-        else
-        {
-            for (var y = 0; y < normalImage.Height; y++)
-            {
-                for (var x = 0; x < normalImage.Width; x++)
-                {
-                    specImage[x, y] = new Rgba32(128, 128, 128, 128);
-                }
-            }
-        }
-
-        if (normalImage.Width != specImage.Width || normalImage.Height != specImage.Height)
-            throw new InvalidOperationException("Input images must have same dimensions.");
-
-        // Create combined image
-        var combined = new Image<Rgba32>(normalImage.Width, normalImage.Height);
-
-        // R,G channels hold signed XY encoded as 0..255 -> -1..1.
-        // Z is reconstructed as sqrt(1 - x^2 - y^2) and mapped back to 0..255.
-        for (var y = 0; y < normalImage.Height; y++)
-        {
-            for (var x = 0; x < normalImage.Width; x++)
-            {
-                var npx = normalImage.Frames[0].PixelBuffer[x, y];
-                var spx = specImage.Frames[0].PixelBuffer[x, y];
-
-                // Convert from [0..255] to [-1..1]
-                var nx = npx.R / 255f * 2f - 1f;
-                var ny = npx.G / 255f * 2f - 1f;
-
-                // Compute z (clamp small negative to 0)
-                var nz2 = 1f - nx * nx - ny * ny;
-                var nz = nz2 > 0f ? (float)Math.Sqrt(nz2) : 0f;
-
-                // Remap to [0..255]
-                var outR = (byte)MathF.Round((nx * 0.5f + 0.5f) * 255f);
-                var outG = (byte)MathF.Round((ny * 0.5f + 0.5f) * 255f);
-                var outB = (byte)MathF.Round((nz * 0.5f + 0.5f) * 255f);
-
-                // Spec map: use red channel (or luminance). We use red here.
-                var outA = spx.R;
-
-                combined[x, y] = new Rgba32(outR, outG, outB, outA);
-            }
-        }
-
-        // Encode to DXT5 / BC3 using BCnEncoder
-        var encoder = new BcEncoder
-        {
-            OutputOptions =
-            {
-                GenerateMipMaps = true, // generate full mip chain
-                Format = CompressionFormat.Bc3,
-                FileFormat = OutputFileFormat.Dds,
-                Quality = CompressionQuality.Balanced
-            }
-        };
-
-        bc5Fs.Close();
-        using var outFs = File.Create(bc5Path);
-        encoder.EncodeToStream(combined, outFs);
-        outFs.Seek(0x44, SeekOrigin.Begin);
-        outFs.Write("KRAN"u8);
-        outFs.Close();
+        var merged = MergeNormalSpecularMapsFromMemory(bc5Bytes, bc4Bytes);
+        File.WriteAllBytes(bc5Path, merged);
 
         // Delete specular map
         if (bc4Path != null) File.Delete(bc4Path);
     }
 
     /// <summary>
-    ///     In-memory variant of <see cref="MergeNormalSpecularMaps" />. Decodes a BC5 normal
-    ///     map's RG channels (signed XY), reconstructs Z via <c>sqrt(1 - x² - y²)</c>, optionally
-    ///     blends a BC4 specular map's red channel into the alpha slot (gray-128 fallback when
-    ///     no spec is supplied), and re-encodes as DXT5/BC3. This is the format vanilla
-    ///     Fallout NV uses for normal maps — the engine does not load BC5/ATI2 normal maps
-    ///     and renders whatever stale memory occupies the texture slot.
+    ///     Re-encodes a BC5/ATI2 normal map into the form vanilla Fallout NV loads — the engine
+    ///     does not accept BC5 normal maps and renders whatever stale memory occupies the slot.
+    ///     RG (signed XY) pass through unchanged and Blue is SATURATED (255), matching the
+    ///     vanilla corpus (B ≈ 255 regardless of slope; a sqrt(1-x²-y²) reconstruction sags
+    ///     toward 128 on steep texels and renders as dark quads along crevices).
+    ///     <para>
+    ///     With a usable BC4 specular companion, the output is DXT5/BC3 with the companion's
+    ///     red channel in alpha — FNV reads the per-texel specular mask from normal-map alpha.
+    ///     With NO usable companion the output is DXT1/BC1 with no alpha channel at all: that
+    ///     is vanilla's encoding for "this material has no specular" (397/400 of the same
+    ///     no-companion textures ship as DXT1 on PC), and the engine treats an alpha-less
+    ///     normal map as specular-off even when the shape's SF_Specular flag is set. The old
+    ///     neutral-gray-128 alpha fallback turned "no specular" into "50% gloss everywhere"
+    ///     (the Doc Mitchell shiny-outfit bug).
+    ///     </para>
     /// </summary>
     public static byte[] MergeNormalSpecularMapsFromMemory(byte[] bc5Bytes, byte[]? bc4Bytes)
     {
@@ -116,7 +52,7 @@ public static class DdsPostProcessor
         using var bc5Stream = new MemoryStream(bc5Bytes);
         using var normalImage = decoder.DecodeToImageRgba32(bc5Stream);
 
-        Image<Rgba32> specImage;
+        Image<Rgba32>? specImage = null;
         if (bc4Bytes is not null)
         {
             using var bc4Stream = new MemoryStream(bc4Bytes);
@@ -125,18 +61,14 @@ public static class DdsPostProcessor
             // A specular companion of a different resolution than the normal map can't be
             // sampled per-texel, so it's unusable. This happens when the companion lookup
             // lands on a sibling that isn't the real `_s` map (e.g. the diffuse). Discard it
-            // and fall back to neutral gray rather than failing the whole conversion — a
-            // failed merge would drop the normal map to its un-loadable BC5/ATI2 original,
-            // which is exactly the texture-swap bug this merge exists to prevent.
+            // and fall through to the no-specular DXT1 encoding rather than failing the whole
+            // conversion — a failed merge would drop the normal map to its un-loadable
+            // BC5/ATI2 original, which is exactly the texture-swap bug this merge prevents.
             if (specImage.Width != normalImage.Width || specImage.Height != normalImage.Height)
             {
                 specImage.Dispose();
-                specImage = CreateNeutralSpecular(normalImage.Width, normalImage.Height);
+                specImage = null;
             }
-        }
-        else
-        {
-            specImage = CreateNeutralSpecular(normalImage.Width, normalImage.Height);
         }
 
         try
@@ -147,18 +79,9 @@ public static class DdsPostProcessor
                 for (var x = 0; x < normalImage.Width; x++)
                 {
                     var npx = normalImage.Frames[0].PixelBuffer[x, y];
-                    var spx = specImage.Frames[0].PixelBuffer[x, y];
+                    var alpha = specImage is null ? (byte)255 : specImage.Frames[0].PixelBuffer[x, y].R;
 
-                    var nx = npx.R / 255f * 2f - 1f;
-                    var ny = npx.G / 255f * 2f - 1f;
-                    var nz2 = 1f - nx * nx - ny * ny;
-                    var nz = nz2 > 0f ? (float)Math.Sqrt(nz2) : 0f;
-
-                    var outR = (byte)MathF.Round((nx * 0.5f + 0.5f) * 255f);
-                    var outG = (byte)MathF.Round((ny * 0.5f + 0.5f) * 255f);
-                    var outB = (byte)MathF.Round((nz * 0.5f + 0.5f) * 255f);
-
-                    combined[x, y] = new Rgba32(outR, outG, outB, spx.R);
+                    combined[x, y] = new Rgba32(npx.R, npx.G, 255, alpha);
                 }
             }
 
@@ -167,7 +90,9 @@ public static class DdsPostProcessor
                 OutputOptions =
                 {
                     GenerateMipMaps = true,
-                    Format = CompressionFormat.Bc3,
+                    // No usable specular companion => DXT1 (no alpha channel), vanilla's
+                    // "no specular" spelling. With a companion => DXT5, spec mask in alpha.
+                    Format = specImage is null ? CompressionFormat.Bc1 : CompressionFormat.Bc3,
                     FileFormat = OutputFileFormat.Dds,
                     Quality = CompressionQuality.Balanced
                 }
@@ -177,8 +102,8 @@ public static class DdsPostProcessor
             encoder.EncodeToStream(combined, outStream);
 
             var bytes = outStream.ToArray();
-            // KRAN marker at 0x44 — matches the file-path variant so downstream code that
-            // sniffs for the marker (DdsTextureDecoder, etc.) keeps working.
+            // KRAN marker at 0x44 — downstream code that sniffs for the marker
+            // (DdsTextureDecoder, etc.) identifies packer-converted textures by it.
             if (bytes.Length >= 0x48)
             {
                 bytes[0x44] = (byte)'K';
@@ -191,27 +116,8 @@ public static class DdsPostProcessor
         }
         finally
         {
-            specImage.Dispose();
+            specImage?.Dispose();
         }
-    }
-
-    /// <summary>
-    ///     Build a neutral (gray-128) specular image at the given dimensions. Used when no
-    ///     specular companion is supplied, or when the supplied one is the wrong resolution
-    ///     to merge into the normal map's alpha channel.
-    /// </summary>
-    private static Image<Rgba32> CreateNeutralSpecular(int width, int height)
-    {
-        var image = new Image<Rgba32>(width, height);
-        for (var y = 0; y < height; y++)
-        {
-            for (var x = 0; x < width; x++)
-            {
-                image[x, y] = new Rgba32(128, 128, 128, 128);
-            }
-        }
-
-        return image;
     }
 
     private static CompressionFormat GetCompressionFromPixelFormat(uint pf)

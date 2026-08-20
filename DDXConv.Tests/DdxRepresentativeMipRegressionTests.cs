@@ -25,7 +25,10 @@ public sealed class DdxRepresentativeMipRegressionTests
         new RegressionCase("3xdo_g", @"architecture\freeside\freesidewelcomesign_g", 9,
             CompareMode.ExactPrefixRgb),
         new RegressionCase("3xdo_hl", @"characters\hair\beardcircle_hl", 10, CompareMode.ExactPrefixRgb),
-        new RegressionCase("3xdo_lod", @"architecture\barrier\nv_noso_neonsignconnection01_lod", 3,
+        // Re-baselined 3 -> 8 when the decompression hint grew to cover the sequential mip
+        // chain: the old mip0-sized hint truncated this 128x128's 24,576-byte mip chunk at
+        // 16,384 and silently dropped levels 3+ (same mechanism as the eye-texture test).
+        new RegressionCase("3xdo_lod", @"architecture\barrier\nv_noso_neonsignconnection01_lod", 8,
             CompareMode.ExactPrefixRgb),
         new RegressionCase("3xdo_m", @"architecture\bittersprings\nv_signcallville_m", 9,
             CompareMode.ExactPrefixRgb),
@@ -49,14 +52,32 @@ public sealed class DdxRepresentativeMipRegressionTests
         new RegressionCase("3xdr_p", @"architecture\noso\nv_noso_rowhouse_rubble_p", 1,
             CompareMode.ExactPrefixRgb),
         new RegressionCase("3xdr_s", @"dungeons\nvlucky38\nvpenthouseconcrete_s", 1,
-            CompareMode.ExactPrefixRgb)
+            CompareMode.ExactPrefixRgb),
+
+        // ── Layout-divergent surfaces (round-2 decode fixes). These shapes decoded to black
+        // rectangles (or garbage) before the aligned-extent + tail-origin + routing fixes; each
+        // one pins the class that used to fail. MAE budgets cover deep-mip drift on tiny levels.
+        new RegressionCase("tail_sq_chalk", @"clutter\chalk", 4, CompareMode.ExactPrefixRgb),
+        new RegressionCase("tail_sq_white", @"architecture\barracks\white", 5, CompareMode.ExactPrefixRgb),
+        new RegressionCase("tail_sq_shade", @"shared\shadefade01lod", 5, CompareMode.ExactPrefixRgb),
+        new RegressionCase("oneaxis_wide_e", @"effects\chromedull_e", 9, CompareMode.ExactPrefixRgb, 2.5),
+        new RegressionCase("oneaxis_wide_fx", @"effects\fxlightrays", 8, CompareMode.ExactPrefixRgb, 2.0),
+        new RegressionCase("oneaxis_wide_g", @"traps\lasertripwire01_g", 10, CompareMode.ExactPrefixRgb, 2.5),
+        new RegressionCase("oneaxis_tall_fx", @"effects\explosionspark01", 8, CompareMode.ExactPrefixRgb, 3.0),
+        new RegressionCase("oneaxis_tall_ui", @"interface\shared\background\dotted", 10,
+            CompareMode.ExactPrefixRgb, 2.0),
+        // PC reference declares dwMipMapCount=0, so its exporter yields no PNGs — this case
+        // pins the recovered mip count; content is covered by the corpus MAE oracle.
+        new RegressionCase("tail_strip_fade", @"interface\shared\line\fade_to_left", 9,
+            CompareMode.CountOnly),
+        new RegressionCase("chain_sinwave", @"clutter\sinwave01", 8, CompareMode.ExactPrefixRgb, 1.5)
     ];
 
     [Theory]
     [MemberData(nameof(RepresentativeCases))]
     public void RepresentativeCases_PreserveExpectedMipBehavior(RegressionCase regressionCase)
     {
-        var repoRoot = FindRepoRoot();
+        var repoRoot = Support.SampleAssetGuard.RequireSampleRoot();
         var xboxPath = Path.Combine(repoRoot, XboxTexturesRoot, regressionCase.RelativePath + ".ddx");
         var pcPath = Path.Combine(repoRoot, PcTexturesRoot, regressionCase.RelativePath + ".dds");
 
@@ -118,7 +139,8 @@ public sealed class DdxRepresentativeMipRegressionTests
             for (var mip = 0; mip < compareCount; mip++)
             {
                 using var xboxMip = Image.Load<Rgba32>(xboxMipPngs[mip]);
-                var maxAllowedError = Math.Max(xboxMip.Width, xboxMip.Height) <= 4 ? 4.0 : 1.0;
+                var maxAllowedError = regressionCase.MaeBudget ??
+                                      (Math.Max(xboxMip.Width, xboxMip.Height) <= 4 ? 4.0 : 1.0);
                 Assert.InRange(perMipMae[mip], 0.0, maxAllowedError);
             }
     }
@@ -127,6 +149,12 @@ public sealed class DdxRepresentativeMipRegressionTests
         string[] pcMipPngs)
     {
         var rowCount = Math.Min(Math.Min(xboxMipPngs.Length, pcMipPngs.Length), 6);
+        if (rowCount == 0)
+        {
+            // PC interface DDS with dwMipMapCount=0 export no mip PNGs — nothing to sheet.
+            return;
+        }
+
         const int cellSize = 160;
         const int gap = 12;
         using var sheet = new Image<Rgba32>(cellSize * 2 + gap, rowCount * (cellSize + gap) - gap, Color.White);
@@ -184,20 +212,6 @@ public sealed class DdxRepresentativeMipRegressionTests
         return total / samples;
     }
 
-    private static string FindRepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null)
-        {
-            if (Directory.Exists(Path.Combine(dir.FullName, "Sample")))
-                return dir.FullName;
-
-            dir = dir.Parent;
-        }
-
-        throw new DirectoryNotFoundException("Could not find repo root containing the Sample directory.");
-    }
-
     private static void ResetDirectory(string path)
     {
         if (Directory.Exists(path))
@@ -206,7 +220,13 @@ public sealed class DdxRepresentativeMipRegressionTests
         Directory.CreateDirectory(path);
     }
 
-    public sealed record RegressionCase(string Label, string RelativePath, int ExpectedMipCount, CompareMode Mode);
+    /// <param name="MaeBudget">
+    ///     Optional per-case ceiling for the per-mip RGB MAE, overriding the defaults
+    ///     (1.0, or 4.0 for mips no larger than 4px). Used by shapes whose deepest mips
+    ///     legitimately drift a little further from the PC encoder's chain.
+    /// </param>
+    public sealed record RegressionCase(
+        string Label, string RelativePath, int ExpectedMipCount, CompareMode Mode, double? MaeBudget = null);
 
     public enum CompareMode
     {

@@ -19,6 +19,8 @@ if (opts.Contains("--help") || opts.Contains("-h"))
     Console.WriteLine("Single File: DDXConv <input_file> [output_file] [options]");
     Console.WriteLine("      Batch: DDXConv <input_directory> <output_directory> [options]");
     Console.WriteLine("     Verify: DDXConv --verify <ddx_directory> <manifest> [--write-golden] [--limit=N]");
+    Console.WriteLine("             [--pc-ref=<pcTexturesDir>] [--mae=changed|all|off] [--mae-report=<csv>]");
+    Console.WriteLine("             [--mae-tolerance=<maxWorseningBeforeFail, default 0.25>]");
     Console.WriteLine();
     Console.WriteLine("Standard Options:");
     Console.WriteLine("  --pc-friendly, -pc   Produce PC-ready normal maps (batch conversion only!)");
@@ -70,7 +72,40 @@ if (opts.Contains("--verify"))
         Environment.Exit(DdxVerifyHarness.TimeDecode(positional[0], verifyLimit, repeat));
     }
 
-    Environment.Exit(DdxVerifyHarness.Run(positional[0], positional[1], writeGolden, verifyLimit));
+    // MAE-oracle options: with a PC reference tree attached, changed files are judged by decoded
+    // pixels against the reference instead of failing outright.
+    static string? OptionValue(HashSet<string> opts, string prefix)
+    {
+        var opt = opts.FirstOrDefault(o => o.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+        return opt?[prefix.Length..];
+    }
+
+    var maeModeText = OptionValue(opts, "--mae=") ?? "changed";
+    if (!Enum.TryParse<DdxVerifyHarness.MaeMode>(maeModeText, ignoreCase: true, out var maeMode))
+    {
+        Console.WriteLine($"Unknown --mae mode '{maeModeText}' (expected changed, all, or off).");
+        Environment.Exit(2);
+    }
+
+    var maeTolerance = 0.25;
+    var toleranceText = OptionValue(opts, "--mae-tolerance=");
+    if (toleranceText != null &&
+        !double.TryParse(toleranceText, System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out maeTolerance))
+    {
+        Console.WriteLine($"Invalid --mae-tolerance '{toleranceText}'.");
+        Environment.Exit(2);
+    }
+
+    var oracle = new DdxVerifyHarness.OracleOptions
+    {
+        PcReferenceRoot = OptionValue(opts, "--pc-ref="),
+        Mode = maeMode,
+        ReportPath = OptionValue(opts, "--mae-report="),
+        Tolerance = maeTolerance
+    };
+
+    Environment.Exit(DdxVerifyHarness.Run(positional[0], positional[1], writeGolden, verifyLimit, oracle));
 }
 
 var inputPath = positional[0];

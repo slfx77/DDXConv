@@ -18,9 +18,14 @@ public sealed class DdxTwoChunkSequentialMipTests
     }
 
     [Fact]
-    public void ConvertDdxToDds_EyeTexture_PreservesRealMip2WithoutFabricatingDeeperLevels()
+    public void ConvertDdxToDds_EyeTexture_DecodesTheFullEightMipChain()
     {
-        var repoRoot = FindRepoRoot();
+        // History: this test pinned 3 exported mips while the decompression hint stopped at the
+        // linear mip-0 size — the 24,576-byte sequential mip chunk was silently truncated at
+        // 16,384 and levels 3+ were lost. Round 1 of the decode fixes predicted this count
+        // would grow once the hint covered the chain; the sizing fix made it 8 (mip0..mip7),
+        // every level now validated against the PC reference below.
+        var repoRoot = Support.SampleAssetGuard.RequireSampleRoot();
         var xboxEye = Path.Combine(repoRoot, "Sample", "Textures", "textures_360_final", "textures", "characters",
             "eyes", "eyedefault.ddx");
         var pcEye = Path.Combine(repoRoot, "Sample", "Unpacked_Builds", "PC_Final_Unpacked", "Data", "textures",
@@ -44,19 +49,20 @@ public sealed class DdxTwoChunkSequentialMipTests
             var xboxMipPngs = DdsPostProcessor.ExportMipImages(outputDds);
             var pcMipPngs = DdsPostProcessor.ExportMipImages(pcCopy);
 
-            Assert.Equal(3, xboxMipPngs.Length);
-            Assert.True(pcMipPngs.Length >= 3, "Expected at least mip0..mip2 in PC reference DDS.");
+            Assert.Equal(8, xboxMipPngs.Length);
+            Assert.True(pcMipPngs.Length >= 8, "Expected the full mip0..mip7 chain in the PC reference DDS.");
 
-            using var xboxMip1 = Image.Load<Rgba32>(xboxMipPngs[1]);
-            using var xboxMip2 = Image.Load<Rgba32>(xboxMipPngs[2]);
-            using var pcMip1 = Image.Load<Rgba32>(pcMipPngs[1]);
-            using var pcMip2 = Image.Load<Rgba32>(pcMipPngs[2]);
+            for (var level = 0; level < 8; level++)
+            {
+                using var xboxMip = Image.Load<Rgba32>(xboxMipPngs[level]);
+                using var pcMip = Image.Load<Rgba32>(pcMipPngs[level]);
 
-            Assert.Equal((64, 64), (xboxMip1.Width, xboxMip1.Height));
-            Assert.Equal((32, 32), (xboxMip2.Width, xboxMip2.Height));
+                var expectedDim = Math.Max(1, 128 >> level);
+                Assert.Equal((expectedDim, expectedDim), (xboxMip.Width, xboxMip.Height));
 
-            Assert.InRange(ComputeMeanAbsoluteRgbError(xboxMip1, pcMip1), 0.0, 1.0);
-            Assert.InRange(ComputeMeanAbsoluteRgbError(xboxMip2, pcMip2), 0.0, 1.0);
+                var mae = ComputeMeanAbsoluteRgbError(xboxMip, pcMip);
+                Assert.True(mae <= 1.0, $"mip {level}: MAE {mae:0.###} vs PC reference exceeds 1.0");
+            }
         }
         finally
         {
@@ -86,17 +92,4 @@ public sealed class DdxTwoChunkSequentialMipTests
         return total / samples;
     }
 
-    private static string FindRepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null)
-        {
-            if (Directory.Exists(Path.Combine(dir.FullName, "Sample")))
-                return dir.FullName;
-
-            dir = dir.Parent;
-        }
-
-        throw new DirectoryNotFoundException("Could not find repo root containing the Sample directory.");
-    }
 }

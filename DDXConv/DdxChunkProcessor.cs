@@ -8,9 +8,21 @@ namespace DDXConv;
 internal sealed class DdxChunkProcessor(bool verboseLogging)
 {
     /// <summary>
-    ///     Delegate for unswizzling DXT texture data (Morton order to linear).
+    ///     Delegate for unswizzling DXT texture data (Morton order to linear) with real-surface
+    ///     semantics: tile-aligned extent and packed-tail origin crop. Use for every decode of
+    ///     an actual GPU surface at its own dimensions.
     /// </summary>
     internal required Func<byte[], int, int, uint, byte[]> UnswizzleDxtTexture { get; init; }
+
+    /// <summary>
+    ///     Delegate for the plain logical-dims untile, for call sites whose dimensions are
+    ///     heuristic guesses rather than real surfaces (memory-dump atlas extraction, the
+    ///     legacy large-texture linear mip walk). These historically relied on the aligned
+    ///     wrapper's short-source fallback landing them on the plain path; with that fallback
+    ///     gone, routing them explicitly keeps their behavior frozen instead of silently
+    ///     decoding a guessed rectangle on an aligned layout it never had.
+    /// </summary>
+    internal required Func<byte[], int, int, uint, byte[]> UnswizzleDxtTextureHeuristic { get; init; }
 
     /// <summary>
     ///     Delegate for unpacking mip atlas data.
@@ -107,26 +119,17 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         Array.Copy(mainData, 0, chunk1, 0, chunk1Size);
         Array.Copy(mainData, chunk1Size, chunk2, 0, chunk2Size);
 
-        // Pad truncated main surface to expected size so unswizzle can operate on full
-        // dimensions. Missing data becomes zero blocks (black in DXT).
-        var expectedMainBytes = TextureUtilities.CalculateMipSize(width, height, texture.ActualFormat);
-        if (chunk2.Length < expectedMainBytes)
-        {
-            if (verboseLogging)
-                Console.WriteLine(
-                    $"Padding truncated main surface from {chunk2.Length} to {expectedMainBytes} bytes ({chunk2.Length * 100 / expectedMainBytes}% complete)");
-            var padded = new byte[expectedMainBytes];
-            Array.Copy(chunk2, 0, padded, 0, chunk2.Length);
-            chunk2 = padded;
-        }
-
+        // A short main surface is decoded as-is: the aligned unswizzle bounds-checks every
+        // read, so missing source blocks become zeroed destination blocks with honest
+        // skip/unwritten counters. Padding to the LINEAR size here used to lock unaligned
+        // shapes out of the aligned decode path entirely (linear < tiled extent, always).
         var untiledMain = UnswizzleDxtTexture(chunk2, width, height, texture.ActualFormat);
 
         // Determine mip extraction strategy based on chunk1 size.
         // On-disk DDX stores mips as sequential tile-aligned surfaces (Xenia model),
         // and some files only include a prefix of the mip chain. Memory dumps store
         // mips as an XG atlas (GPU in-memory layout).
-        var expectedSequentialSize = ComputeSequentialTiledMipTotal(width, height, texture.ActualFormat, blockSize);
+        var expectedSequentialSize = TextureUtilities.ComputeSequentialTiledMipTotal(width, height, texture.ActualFormat);
         var sequentialStoredMipLevels =
             magic != 0x52445833
                 ? CountSequentialStoredMipLevels(width, height, texture.ActualFormat, blockSize, (int)chunk1Size)
@@ -174,34 +177,6 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         return linearData;
     }
 
-    /// <summary>
-    ///     Compute the total byte size of sequential tile-aligned mip surfaces (Xenia model).
-    ///     Xbox 360 GPU aligns each mip's block dimensions to multiples of 32.
-    ///     Packed tail mips (where min(w,h) ≤ 16 pixels) share a single 32×32-block tile.
-    /// </summary>
-    private static int ComputeSequentialTiledMipTotal(int baseWidth, int baseHeight, uint format, int blockSize)
-    {
-        var total = 0;
-        var totalLevels = (int)TextureUtilities.CalculateMipLevels((uint)baseWidth, (uint)baseHeight);
-
-        for (var level = 1; level < totalLevels; level++)
-        {
-            var mipW = Math.Max(4, baseWidth >> level);
-            var mipH = Math.Max(4, baseHeight >> level);
-
-            if (Math.Min(mipW, mipH) <= 16)
-            {
-                // Packed tail: one 32×32-block tile for all remaining mips
-                total += 32 * 32 * blockSize;
-                break;
-            }
-
-            total += TextureUtilities.CalculateTiledMipSize(mipW, mipH, format);
-        }
-
-        return total;
-    }
-
     internal static int CountSequentialStoredMipLevels(int baseWidth, int baseHeight, uint format, int blockSize,
         int dataSize)
     {
@@ -218,7 +193,9 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
 
             if (Math.Min(mipW, mipH) <= 16)
             {
-                var packedTailSize = 32 * 32 * blockSize;
+                // Packed tail: one tile-aligned surface sized from the tail-base level's dims
+                // (multiple macro tiles for aspect > 8, one 32x32-block tile otherwise).
+                var packedTailSize = TextureUtilities.CalculateTiledMipSize(mipW, mipH, format);
                 return consumed + packedTailSize == dataSize ? totalLevels - 1 : 0;
             }
 
@@ -300,26 +277,37 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
     }
 
     /// <summary>
-    ///     Extract packed tail mips from a single 32×32-block tile.
-    ///     Uses ComputeTailLevelOffset to find each mip's position within the tile.
+    ///     Extract packed tail mips from the shared tail surface.
+    ///     Uses ComputeTailLevelOffset to find each mip's position within it. The surface is
+    ///     the tile-aligned extent of the tail-base level's dims — one 32×32-block tile for
+    ///     aspect ratios ≤ 8, multiple macro tiles for wide/tall chains (whose tail offsets
+    ///     land beyond the first tile, e.g. block x=32 for a 256×16 tail base).
     /// </summary>
     private void ExtractPackedTailMips(
         byte[] tiledMipData, int offset, int baseWidth, int baseHeight,
-        int startLevel, int totalLevels, uint format, int blockSize, MemoryStream output)
+        int startLevel, int totalLevels, uint format, int blockSize, MemoryStream output,
+        int? tailBaseLevel = null)
     {
-        var tileSize = 32 * 32 * blockSize;
+        // The tail's shared surface is sized/addressed from the TAIL BASE level's dims, which
+        // usually equals the first level extracted (sequential chains) but not always: a
+        // tail-base-0 single-chunk surface holds mip 0 too, and extraction starts at level 1.
+        var tailBase = tailBaseLevel ?? startLevel;
+        var tailBaseW = Math.Max(1, baseWidth >> tailBase);
+        var tailBaseH = Math.Max(1, baseHeight >> tailBase);
+        var tailTiledBlocksW = (Math.Max(1, (tailBaseW + 3) / 4) + 31) & ~31;
+        var tailTiledBlocksH = (Math.Max(1, (tailBaseH + 3) / 4) + 31) & ~31;
+        var tileSize = tailTiledBlocksW * tailTiledBlocksH * blockSize;
         if (offset + tileSize > tiledMipData.Length) return;
 
         var tileData = new byte[tileSize];
         Array.Copy(tiledMipData, offset, tileData, 0, tileSize);
-        var untiledTile = TextureUtilities.UnswizzleMortonDxt(tileData, 128, 128, format);
-
-        var tailBaseW = Math.Max(1, baseWidth >> startLevel);
-        var tailBaseH = Math.Max(1, baseHeight >> startLevel);
+        var untiledTile = TextureUtilities.UnswizzleMortonDxt(
+            tileData, tailTiledBlocksW * 4, tailTiledBlocksH * 4, format);
 
         if (verboseLogging)
             Console.WriteLine(
-                $"  Packed tail at level {startLevel}: {tailBaseW}x{tailBaseH} base, {totalLevels - startLevel} mips in tile");
+                $"  Packed tail at level {startLevel}: {tailBaseW}x{tailBaseH} base " +
+                $"({tailTiledBlocksW}x{tailTiledBlocksH} tiled blocks), {totalLevels - startLevel} mips in tile");
 
         for (var level = startLevel; level < totalLevels; level++)
         {
@@ -329,11 +317,11 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
             var blocksH = Math.Max(1, (mipH + 3) / 4);
 
             var (ox, oy) = TextureUtilities.ComputeTailLevelOffset(
-                level - startLevel, tailBaseW, tailBaseH);
+                level - tailBase, tailBaseW, tailBaseH);
 
             for (var row = 0; row < blocksH; row++)
             {
-                var srcOff = ((oy + row) * 32 + ox) * blockSize;
+                var srcOff = ((oy + row) * tailTiledBlocksW + ox) * blockSize;
                 if (srcOff + blocksW * blockSize <= untiledTile.Length)
                     output.Write(untiledTile, srcOff, blocksW * blockSize);
             }
@@ -425,7 +413,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         }
         else
         {
-            untiledAtlas = UnswizzleDxtTexture(chunk1, atlasWidth, atlasHeight, texture.ActualFormat);
+            untiledAtlas = UnswizzleDxtTextureHeuristic(chunk1, atlasWidth, atlasHeight, texture.ActualFormat);
         }
 
         if (options is { SaveAtlas: true } && outputPath != null)
@@ -451,7 +439,9 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
     }
 
     /// <summary>
-    ///     Process single-chunk format with various layout heuristics.
+    ///     Process single-chunk format. Surfaces whose stored layout differs from the logical
+    ///     one (either axis sub-tile, over-tile unaligned, or packed-tail origin) take the
+    ///     unified aligned path; aligned surfaces fall through to the size heuristics.
     /// </summary>
     private byte[] ProcessSingleChunkFormat(
         byte[] mainData,
@@ -467,6 +457,13 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         if (verboseLogging)
             Console.WriteLine(
                 $"Single-chunk format detected ({mainData.Length} bytes, expected {mainSurfaceSize} for {width}x{height})");
+
+        // One predicate replaces the shape special-cases that were patched narrowly three
+        // times: whenever the stored surface differs from the logical one, decode on the
+        // stored layout and crop — for oversized, exact and undersized payloads alike.
+        var layout = SurfaceLayout.For(width, height, texture.ActualFormat);
+        if (layout.RequiresAlignedMip0)
+            return ProcessAlignedSurfaceChain(mainData, texture, width, height, layout, options);
 
         // Check if data might be two square chunks
         var halfSize = mainData.Length / 2;
@@ -503,6 +500,215 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         return linearData;
     }
 
+    /// <summary>
+    ///     Unified single-chunk decode for every surface whose stored layout differs from the
+    ///     logical one: unswizzle the full stored extent (bounds-checked, so short payloads
+    ///     leave counted skips instead of silently rerouting) and crop mip 0 out of it.
+    ///     Replaces ProcessSubTileSequentialMips (both-axes sub-tile only) and the
+    ///     ProcessSmallTextureHorizontalSplit heuristics (a hardcoded 192×256+64×256 split
+    ///     whose match condition was vacuously true for any sufficiently large buffer, and a
+    ///     "simple split" that sliced the first linear-size bytes of a tiled stream — for a
+    ///     one-axis-sub-tile file that slice is entirely disjoint from where level 0's blocks
+    ///     actually live).
+    /// </summary>
+    private byte[] ProcessAlignedSurfaceChain(
+        byte[] mainData, D3DTextureInfo texture, int width, int height, SurfaceLayout layout,
+        ConversionOptions? options)
+    {
+        if (verboseLogging)
+            Console.WriteLine(
+                $"Aligned-surface decode: {width}x{height} logical {layout.BlocksW}x{layout.BlocksH} " +
+                $"blocks in {layout.TiledBlocksW}x{layout.TiledBlocksH} stored, origin ({layout.OriginXBlocks},{layout.OriginYBlocks}), " +
+                $"payload {mainData.Length}/{layout.TiledMip0Bytes} bytes");
+
+        var blockSize = TextureUtilities.GetBlockSize(texture.ActualFormat);
+        var mip0Linear = UnswizzleDxtTexture(mainData, width, height, texture.ActualFormat);
+        texture.MipLevels = 1;
+
+        if (mainData.Length < layout.TiledMip0Bytes)
+        {
+            // Short payload: mip 0 carries counted skips for every block whose tiled slot lies
+            // beyond the payload. Where the missing blocks form an exact row or column band,
+            // emit the smaller surface that IS present instead of shipping zero-filled black
+            // (user ruling: honest smaller output over fabricated full-size output).
+            return TryShrinkShortMip0(mip0Linear, mainData.Length, texture, width, height, layout, options);
+        }
+
+        var totalLevels = (int)TextureUtilities.CalculateMipLevels((uint)width, (uint)height);
+        if (layout.TailBaseLevel == 0)
+        {
+            // The whole chain shares this one tail surface: every level sits at its own
+            // ComputeTailLevelOffset inside the extent mip 0 was cropped from.
+            if (totalLevels > 1)
+            {
+                using var output = new MemoryStream();
+                output.Write(mip0Linear, 0, mip0Linear.Length);
+                ExtractPackedTailMips(mainData, 0, width, height,
+                    startLevel: 1, totalLevels, texture.ActualFormat, blockSize, output, tailBaseLevel: 0);
+                texture.MipLevels = (byte)Math.Min(255, totalLevels);
+                if (verboseLogging)
+                    Console.WriteLine($"Tail-base-0 chain: extracted {totalLevels - 1} mip level(s) from the shared surface");
+
+                RecordUnrecognizedTrailing(mainData.Length - layout.TiledMip0Bytes, width, height, options);
+                return output.ToArray();
+            }
+
+            RecordUnrecognizedTrailing(mainData.Length - layout.TiledMip0Bytes, width, height, options);
+            return mip0Linear;
+        }
+
+        // Tail base >= 1: the chain follows mip 0 as sequential tile-aligned surfaces.
+        var trailingLength = mainData.Length - layout.TiledMip0Bytes;
+        if (trailingLength == 0)
+        {
+            return mip0Linear;
+        }
+
+        var storedMips = CountSequentialStoredMipLevels(width, height, texture.ActualFormat, blockSize,
+            trailingLength);
+        if (storedMips > 0)
+        {
+            var mips = ExtractSequentialTiledMips(mainData[layout.TiledMip0Bytes..], width, height,
+                texture.ActualFormat, blockSize);
+            texture.MipLevels = (byte)Math.Min(255, storedMips + 1);
+            if (verboseLogging)
+                Console.WriteLine($"Trailing {trailingLength} bytes = sequential tiled chain of {storedMips} mip level(s)");
+            return Combine(mip0Linear, mips);
+        }
+
+        RecordUnrecognizedTrailing(trailingLength, width, height, options);
+        return mip0Linear;
+    }
+
+    /// <summary>
+    ///     Smaller-DDS emission for a genuinely short mip 0. Presence of each logical block is
+    ///     computed analytically from the payload length via the tiled addressing (deterministic,
+    ///     no decode side effects). The surface shrinks only when the present set is EXACTLY the
+    ///     leading rows (full width) or the leading columns (full height) — a hole or scattered
+    ///     coverage keeps full dimensions with zero fill, because shrinking would discard real
+    ///     data. Row crops win ties (the data is a prefix, no repacking).
+    /// </summary>
+    private byte[] TryShrinkShortMip0(byte[] mip0Linear, int payloadLength, D3DTextureInfo texture,
+        int width, int height, SurfaceLayout layout, ConversionOptions? options)
+    {
+        var blockSize = TextureUtilities.GetBlockSize(texture.ActualFormat);
+        var present = new bool[layout.BlocksW * layout.BlocksH];
+        var presentCount = 0;
+        for (var by = 0; by < layout.BlocksH; by++)
+        {
+            for (var bx = 0; bx < layout.BlocksW; bx++)
+            {
+                var offset = TextureUtilities.TiledBlockByteOffset(
+                    layout.OriginXBlocks + bx, layout.OriginYBlocks + by, layout.TiledBlocksW, texture.ActualFormat);
+                if (offset + blockSize <= payloadLength)
+                {
+                    present[by * layout.BlocksW + bx] = true;
+                    presentCount++;
+                }
+            }
+        }
+
+        if (presentCount == layout.BlocksW * layout.BlocksH)
+        {
+            // Every logical block's slot is inside the payload — nothing to shrink; whatever
+            // loss exists is a layout question, not missing tail data.
+            return mip0Linear;
+        }
+
+        var rowCrop = 0;
+        while (rowCrop < layout.BlocksH &&
+               AllPresentInRange(present, rowCrop * layout.BlocksW, layout.BlocksW))
+        {
+            rowCrop++;
+        }
+
+        var colCrop = 0;
+        while (colCrop < layout.BlocksW && ColumnFullyPresent(present, layout.BlocksW, layout.BlocksH, colCrop))
+        {
+            colCrop++;
+        }
+
+        var rowExact = presentCount == rowCrop * layout.BlocksW;
+        var colExact = presentCount == colCrop * layout.BlocksH;
+        var rowArea = rowExact ? rowCrop * layout.BlocksW : 0;
+        var colArea = colExact ? colCrop * layout.BlocksH : 0;
+
+        if (rowArea == 0 && colArea == 0)
+        {
+            options?.Diagnostics?.RecordTruncatedRead(
+                $"mip0 short ({payloadLength}/{layout.TiledMip0Bytes}B) with scattered coverage: keeping {width}x{height} zero-filled");
+            return mip0Linear;
+        }
+
+        if (rowArea >= colArea)
+        {
+            var newHeight = rowCrop * 4;
+            texture.Height = (ushort)newHeight;
+            texture.MipLevels = 1;
+            options?.Diagnostics?.RecordTruncatedRead(
+                $"mip0 short ({payloadLength}/{layout.TiledMip0Bytes}B): emitting {width}x{newHeight} of {width}x{height}");
+            if (verboseLogging)
+                Console.WriteLine($"Short mip0: emitting complete {width}x{newHeight} row band");
+            return mip0Linear[..(rowCrop * layout.BlocksW * blockSize)];
+        }
+
+        var newWidth = colCrop * 4;
+        texture.Width = (ushort)newWidth;
+        texture.MipLevels = 1;
+        options?.Diagnostics?.RecordTruncatedRead(
+            $"mip0 short ({payloadLength}/{layout.TiledMip0Bytes}B): emitting {newWidth}x{height} of {width}x{height}");
+        if (verboseLogging)
+            Console.WriteLine($"Short mip0: emitting complete {newWidth}x{height} column band");
+
+        var repacked = new byte[colCrop * layout.BlocksH * blockSize];
+        for (var by = 0; by < layout.BlocksH; by++)
+        {
+            Array.Copy(mip0Linear, by * layout.BlocksW * blockSize,
+                repacked, by * colCrop * blockSize, colCrop * blockSize);
+        }
+
+        return repacked;
+    }
+
+    private static bool AllPresentInRange(bool[] present, int start, int count)
+    {
+        for (var i = 0; i < count; i++)
+        {
+            if (!present[start + i])
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool ColumnFullyPresent(bool[] present, int blocksW, int blocksH, int column)
+    {
+        for (var by = 0; by < blocksH; by++)
+        {
+            if (!present[by * blocksW + column])
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private void RecordUnrecognizedTrailing(int trailingLength, int width, int height, ConversionOptions? options)
+    {
+        if (trailingLength <= 0)
+        {
+            return;
+        }
+
+        options?.Diagnostics?.RecordTruncatedRead(
+            $"unrecognized trailing {trailingLength} bytes after aligned mip0 ({width}x{height})");
+        if (verboseLogging)
+            Console.WriteLine($"WARNING: {trailingLength} unrecognized trailing bytes after aligned surface");
+    }
+
     private byte[] ProcessOversizedSingleChunk(
         byte[] mainData,
         List<byte[]> decompressedChunks,
@@ -517,35 +723,57 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         if (width >= 512 && height >= 512)
             return ProcessLargeTextureSequentialMips(mainData, texture, width, height, mainSurfaceSize);
 
-        // Sub-tile textures (< 128px in both dimensions) store mip0 + sequential mip chain,
-        // not mip0 + atlas. The decompressed buffer may include tile-alignment padding.
-        var blocksWide = width / 4;
-        var blocksHigh = height / 4;
-        if (blocksWide < 32 && blocksHigh < 32)
-            return ProcessSubTileSequentialMips(mainData, texture, width, height);
-
         if (decompressedChunks.Count == 1 && mainData.Length == mainSurfaceSize * 2)
             return ProcessSingleChunkDoubleSize(mainData, texture, width, height, mainSurfaceSize, outputPath, options);
 
-        return ProcessSmallTextureHorizontalSplit(mainData, texture, width, height, mainSurfaceSize);
+        // Aligned surface with trailing data (the aligned-layout shapes never reach here).
+        // Probe the trailing bytes for an exact sequential tiled mip chain; then for an exact
+        // linear chain; otherwise keep mip 0 and record what was left, never guess.
+        var blockSize = TextureUtilities.GetBlockSize(texture.ActualFormat);
+        var trailingLength = mainData.Length - (int)mainSurfaceSize;
+
+        var mainSurfaceTiled = mainData[..(int)mainSurfaceSize];
+        var mainSurfaceUntiled = UnswizzleDxtTexture(mainSurfaceTiled, width, height, texture.ActualFormat);
+
+        var storedMips = CountSequentialStoredMipLevels(width, height, texture.ActualFormat, blockSize,
+            trailingLength);
+        if (storedMips > 0)
+        {
+            var mips = ExtractSequentialTiledMips(mainData[(int)mainSurfaceSize..], width, height,
+                texture.ActualFormat, blockSize);
+            texture.MipLevels = (byte)Math.Min(255, storedMips + 1);
+            if (verboseLogging)
+                Console.WriteLine(
+                    $"Trailing {trailingLength} bytes = sequential tiled chain of {storedMips} mip level(s)");
+            return Combine(mainSurfaceUntiled, mips);
+        }
+
+        var linearMip1Size = TextureUtilities.CalculateMipSize(width / 2, height / 2, texture.ActualFormat);
+        if (trailingLength == linearMip1Size)
+        {
+            var mipUntiled = UnswizzleDxtTextureHeuristic(mainData[(int)mainSurfaceSize..], width / 2, height / 2,
+                texture.ActualFormat);
+            texture.MipLevels = 2;
+            if (verboseLogging)
+                Console.WriteLine($"Trailing {trailingLength} bytes = one linear mip surface");
+            return Combine(mainSurfaceUntiled, mipUntiled);
+        }
+
+        options?.Diagnostics?.RecordTruncatedRead(
+            $"unrecognized trailing {trailingLength} bytes after mip0 ({width}x{height})");
+        if (verboseLogging)
+            Console.WriteLine($"WARNING: Unknown mip layout ({trailingLength} trailing bytes), using only main surface");
+
+        texture.MipLevels = 1;
+        return mainSurfaceUntiled;
     }
 
-    private byte[] ProcessSubTileSequentialMips(
-        byte[] mainData, D3DTextureInfo texture, int width, int height)
+    private static byte[] Combine(byte[] first, byte[] second)
     {
-        if (verboseLogging)
-            Console.WriteLine($"Sub-tile texture ({width}x{height}) - deswizzle with tile-padded buffer");
-
-        // Pass the full tile-padded data to the Xenia deswizzle — sub-tile textures have
-        // address-space gaps that extend beyond mainSurfaceSize but the data IS present
-        // in the decompressed buffer at those higher offsets.
-        var mip0Linear = UnswizzleDxtTexture(mainData, width, height, texture.ActualFormat);
-
-        // The deswizzle output is exactly mainSurfaceSize bytes (blocksW * blocksH * blockSize)
-        texture.MipLevels = 1;
-        if (verboseLogging)
-            Console.WriteLine($"Sub-tile: mip0 = {mip0Linear.Length} bytes");
-        return mip0Linear;
+        var combined = new byte[first.Length + second.Length];
+        Array.Copy(first, 0, combined, 0, first.Length);
+        Array.Copy(second, 0, combined, first.Length, second.Length);
+        return combined;
     }
 
     private byte[] ProcessLargeTextureSequentialMips(
@@ -591,7 +819,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
             var mipSize = TextureUtilities.CalculateMipSize(mipWidth, mipHeight, texture.ActualFormat);
             var mipTiled = new byte[mipSize];
             Array.Copy(remainingData, mipOffset, mipTiled, 0, mipSize);
-            var mipUntiled = UnswizzleDxtTexture(mipTiled, mipWidth, mipHeight, texture.ActualFormat);
+            var mipUntiled = UnswizzleDxtTextureHeuristic(mipTiled, mipWidth, mipHeight, texture.ActualFormat);
             mipDataList.Add(mipUntiled);
             mipOffset += mipSize;
             mipWidth /= 2;
@@ -659,88 +887,6 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         return linearData;
     }
 
-    private byte[] ProcessSmallTextureHorizontalSplit(
-        byte[] mainData, D3DTextureInfo texture, int width, int height, uint mainSurfaceSize)
-    {
-        if (verboseLogging) Console.WriteLine("Attempting horizontal split for small texture");
-
-        var chunk1Width = 192;
-        var chunk2Width = 64;
-        var chunkHeight = 256;
-
-        var horizontalChunk1Size =
-            TextureUtilities.CalculateMipSize(chunk1Width, chunkHeight, texture.ActualFormat);
-        var horizontalChunk2Size = mainData.Length - horizontalChunk1Size;
-
-        if (verboseLogging)
-            Console.WriteLine(
-                $"Trying horizontal split: {chunk1Width}x{chunkHeight} ({horizontalChunk1Size} bytes) + {chunk2Width}x{chunkHeight} ({horizontalChunk2Size} bytes)");
-
-        if (horizontalChunk1Size + horizontalChunk2Size == mainData.Length && horizontalChunk2Size > 0)
-        {
-            var chunk1Tiled = new byte[horizontalChunk1Size];
-            var chunk2Tiled = new byte[horizontalChunk2Size];
-            Array.Copy(mainData, 0, chunk1Tiled, 0, horizontalChunk1Size);
-            Array.Copy(mainData, horizontalChunk1Size, chunk2Tiled, 0, horizontalChunk2Size);
-
-            var chunk1Untiled = UnswizzleDxtTexture(chunk1Tiled, chunk1Width, chunkHeight, texture.ActualFormat);
-            var chunk2Untiled = UnswizzleDxtTexture(chunk2Tiled, chunk2Width, chunkHeight, texture.ActualFormat);
-
-            if (verboseLogging)
-                Console.WriteLine($"Untiled chunks: {chunk1Untiled.Length} + {chunk2Untiled.Length} bytes");
-
-            var linearData = InterleaveHorizontalChunks(chunk1Untiled, chunk2Untiled, chunk1Width, chunk2Width,
-                chunkHeight, texture.ActualFormat);
-            if (verboseLogging) Console.WriteLine($"Interleaved to {linearData.Length} bytes");
-
-            texture.MipLevels = 1;
-            if (verboseLogging) Console.WriteLine($"Set MipLevels to {texture.MipLevels}");
-            return linearData;
-        }
-
-        // Fallback: try untiling just the main surface portion
-        if (verboseLogging)
-            Console.WriteLine("Horizontal split didn't match, trying simple split at mainSurfaceSize");
-
-        var mainSurfaceTiled = new byte[mainSurfaceSize];
-        Array.Copy(mainData, 0, mainSurfaceTiled, 0, (int)mainSurfaceSize);
-
-        var mainSurfaceUntiled = UnswizzleDxtTexture(mainSurfaceTiled, width, height, texture.ActualFormat);
-        if (verboseLogging)
-            Console.WriteLine($"Untiled main surface: {mainSurfaceUntiled.Length} bytes");
-
-        var remainingSize = mainData.Length - (int)mainSurfaceSize;
-        if (verboseLogging)
-            Console.WriteLine($"Remaining data: {remainingSize} bytes (might be packed mips)");
-
-        var expectedMip1Size = TextureUtilities.CalculateMipSize(width / 2, height / 2, texture.ActualFormat);
-        if (remainingSize == expectedMip1Size)
-        {
-            if (verboseLogging)
-                Console.WriteLine("Remaining data matches 128x128 mip size, extracting...");
-
-            var mipTiled = new byte[remainingSize];
-            Array.Copy(mainData, (int)mainSurfaceSize, mipTiled, 0, remainingSize);
-
-            var mipUntiled = UnswizzleDxtTexture(mipTiled, width / 2, height / 2, texture.ActualFormat);
-            if (verboseLogging) Console.WriteLine($"Untiled mip: {mipUntiled.Length} bytes");
-
-            var linearData = new byte[mainSurfaceUntiled.Length + mipUntiled.Length];
-            Array.Copy(mainSurfaceUntiled, 0, linearData, 0, mainSurfaceUntiled.Length);
-            Array.Copy(mipUntiled, 0, linearData, mainSurfaceUntiled.Length, mipUntiled.Length);
-            texture.MipLevels = 2;
-            if (verboseLogging) Console.WriteLine($"Set MipLevels to {texture.MipLevels}");
-            return linearData;
-        }
-
-        if (verboseLogging)
-            Console.WriteLine("WARNING: Unknown mip layout, using only main surface");
-
-        texture.MipLevels = 1;
-        if (verboseLogging) Console.WriteLine($"Set MipLevels to {texture.MipLevels}");
-        return mainSurfaceUntiled;
-    }
-
     private byte[] ProcessUndersizedSingleChunk(
         byte[] mainData, D3DTextureInfo texture, int width, int height,
         uint mainSurfaceSize, string? outputPath, ConversionOptions? options)
@@ -795,7 +941,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
 
         if (verboseLogging) Console.WriteLine($"Using atlas dimensions: {atlasWidth}x{atlasHeight}");
 
-        var untiledAtlas = UnswizzleDxtTexture(mainData, atlasWidth, atlasHeight, texture.ActualFormat);
+        var untiledAtlas = UnswizzleDxtTextureHeuristic(mainData, atlasWidth, atlasHeight, texture.ActualFormat);
         if (verboseLogging) Console.WriteLine($"Untiled atlas to {untiledAtlas.Length} bytes");
 
         var largestMipWidth = width / 2;
@@ -1058,7 +1204,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
             Array.Copy(mainData, 0, chunk1, 0, atlasSize128);
             Array.Copy(mainData, atlasSize128, chunk2, 0, mainSize128);
 
-            var untiledAtlas = UnswizzleDxtTexture(chunk1, 256, 192, texture.ActualFormat);
+            var untiledAtlas = UnswizzleDxtTextureHeuristic(chunk1, 256, 192, texture.ActualFormat);
             var untiledMain = UnswizzleDxtTexture(chunk2, 128, 128, texture.ActualFormat);
 
             if (verboseLogging) Console.WriteLine($"Untiled atlas (256x192) to {untiledAtlas.Length} bytes");
@@ -1126,33 +1272,4 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         return untiled;
     }
 
-    /// <summary>
-    ///     Interleave two chunks horizontally to form a complete texture.
-    /// </summary>
-    private static byte[] InterleaveHorizontalChunks(byte[] leftChunk, byte[] rightChunk, int leftWidth, int rightWidth,
-        int height, uint format)
-    {
-        var totalWidth = leftWidth + rightWidth;
-        var blockSize = format is 0x82 or 0x52 or 0x7B ? 8 : 16;
-
-        var leftBlocksWide = leftWidth / 4;
-        var rightBlocksWide = rightWidth / 4;
-        var totalBlocksWide = totalWidth / 4;
-        var blocksHigh = height / 4;
-
-        var result = new byte[totalBlocksWide * blocksHigh * blockSize];
-
-        for (var row = 0; row < blocksHigh; row++)
-        {
-            var dstRowOffset = row * totalBlocksWide * blockSize;
-            var leftSrcRowOffset = row * leftBlocksWide * blockSize;
-            var rightSrcRowOffset = row * rightBlocksWide * blockSize;
-
-            Array.Copy(leftChunk, leftSrcRowOffset, result, dstRowOffset, leftBlocksWide * blockSize);
-            Array.Copy(rightChunk, rightSrcRowOffset, result, dstRowOffset + leftBlocksWide * blockSize,
-                rightBlocksWide * blockSize);
-        }
-
-        return result;
-    }
 }

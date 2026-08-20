@@ -70,6 +70,7 @@ public class DdxParser(bool verbose = false)
     private (D3DTextureInfo Texture, byte[] Data) Convert3Xdr(BinaryReader reader, ConversionOptions options)
     {
         _currentOptions = options;
+        _headerWriter.Diagnostics = options.Diagnostics;
 
         // Read header (same as 3XDO up to offset 0x44)
         _ = reader.ReadByte(); // priorityL
@@ -95,9 +96,13 @@ public class DdxParser(bool verbose = false)
         var fileSize = reader.BaseStream.Length;
         var compressedData = reader.ReadBytes((int)(fileSize - currentPos));
 
-        // Decompress - 3XDR has mip chain in linear layout
+        // Decompress - 3XDR has mip chain in linear layout.
+        // Size from the tile-aligned extent for the same reason as the 3XDO path: the stored
+        // surface is the GPU footprint, and an under-sized buffer truncates the decode silently.
         var mip0Size = (uint)TextureUtilities.CalculateMipSize(width, height, texture.ActualFormat);
-        var decompressed = DecompressXMemCompress(compressedData, mip0Size, out var consumed);
+        var decompressHint = (uint)Math.Max(
+            mip0Size, TextureUtilities.CalculateTiledMipSize(width, height, texture.ActualFormat));
+        var decompressed = DecompressXMemCompress(compressedData, decompressHint, out var consumed);
 
         if (verbose)
             Console.WriteLine(
@@ -142,6 +147,7 @@ public class DdxParser(bool verbose = false)
         BinaryReader reader, string? outputPath, ConversionOptions options, uint magic)
     {
         _currentOptions = options;
+        _headerWriter.Diagnostics = options.Diagnostics;
 
         _ = reader.ReadByte(); // priorityL
         _ = reader.ReadByte(); // priorityC
@@ -177,18 +183,27 @@ public class DdxParser(bool verbose = false)
         // Calculate total expected size: atlas (2x resolution) + linear mips
         var atlasSize = (uint)TextureUtilities.CalculateMipSize(width, height, texture.ActualFormat);
 
-        // For sub-tile textures (< 128px), the GPU tile buffer is larger than the logical
-        // texture size due to Xenia's address-space expansion. Ensure the decompression
-        // buffer is large enough for the full tile-aligned data.
-        var decompressHint = atlasSize;
-        var blocksWide = width / 4;
-        var blocksHigh = height / 4;
-        if (blocksWide < 32 && blocksHigh < 32)
-        {
-            // Full tile = 32×32 blocks; the Xenia formula addresses up to this size
-            var blockSize = TextureUtilities.GetBlockSize(texture.ActualFormat);
-            decompressHint = Math.Max(atlasSize, (uint)(32 * 32 * blockSize));
-        }
+        // The DDX stores the GPU footprint, whose block dimensions are each rounded up to a
+        // multiple of 32, so the decompression buffer must be sized from the TILE-ALIGNED extent.
+        // Sizing it from the logical mip-0 size truncates the decode, and LzxDecompressor reports
+        // success regardless — it simply stops writing once the buffer fills and discards the rest
+        // of the input.
+        //
+        // This used to be a special case guarded by `blocksWide < 32 && blocksHigh < 32`. The AND
+        // meant a surface with exactly ONE sub-tile axis (512x16, 32x128, 1024x64 …) missed the
+        // bump entirely and lost every block column past the first macro tile. Alignment is a
+        // property of each axis independently, so there is no special case to make — always ask
+        // for the aligned extent.
+        //
+        // The sequential mip chain is part of the hint too: chunk 1 of the two-chunk format IS
+        // the mip chain (whose true size is the sequential tiled total, not the mip-0 extent),
+        // and single-chunk files store [tiled mip0][sequential mips] in ONE chunk. A hint that
+        // stops at mip 0 collapses those chains silently — e.g. a 64x64 ATI1 needs
+        // 8192 (mip0) + 16384 (mips), and the old mip0-only hint cut 7 mips down to 1.
+        var decompressHint = (uint)Math.Max(
+            atlasSize,
+            TextureUtilities.CalculateTiledMipSize(width, height, texture.ActualFormat)
+            + TextureUtilities.ComputeSequentialTiledMipTotal(width, height, texture.ActualFormat));
 
         // Decompress all chunks in sequence
         var compressedData = mainData;
@@ -221,7 +236,9 @@ public class DdxParser(bool verbose = false)
                 var remainingCompressed = new byte[remainingSize];
                 Array.Copy(compressedData, offset, remainingCompressed, 0, remainingSize);
 
-                var chunk = DecompressXMemCompress(remainingCompressed, atlasSize, out var chunkCompressedSize);
+                // Same hint as chunk 1 (tiled mip0 + sequential mip chain) — a later chunk is
+                // either the main surface or a mip chain, and the combined hint covers both.
+                var chunk = DecompressXMemCompress(remainingCompressed, decompressHint, out var chunkCompressedSize);
                 if (verbose)
                     Console.WriteLine(
                         $"Chunk {decompressedChunks.Count + 1}: consumed {chunkCompressedSize} compressed bytes, got {chunk.Length} decompressed bytes");
@@ -272,14 +289,15 @@ public class DdxParser(bool verbose = false)
         var mainSurfaceSize = (uint)TextureUtilities.CalculateMipSize(width, height, texture.ActualFormat);
 
         // Wire up the mip atlas unpacker's WriteDdsFile callback
-        _mipAtlasUnpacker.WriteDdsFileCallback = _headerWriter.WriteDdsFile;
+        _mipAtlasUnpacker.WriteDdsFileCallback = _headerWriter.WriteAuxDdsFile;
 
         // Create chunk processor with delegates
         var chunkProcessor = new DdxChunkProcessor(verbose)
         {
             UnswizzleDxtTexture = UnswizzleDxtTexture,
+            UnswizzleDxtTextureHeuristic = UnswizzleDxtTextureHeuristic,
             UnpackMipAtlas = _mipAtlasUnpacker.UnpackMipAtlas,
-            WriteDdsFile = _headerWriter.WriteDdsFile
+            WriteDdsFile = _headerWriter.WriteAuxDdsFile
         };
 
         // Process chunks into final linear texture data
@@ -342,6 +360,21 @@ public class DdxParser(bool verbose = false)
 
         if (verbose) Console.WriteLine($"Decompressed {compressedLen} -> {decompressedLen} bytes");
 
+        // The output buffer is a hard ceiling: LzxDecompressor stops writing once it fills and
+        // still reports success, silently discarding the rest of the input. A saturated buffer
+        // with unread input therefore means "we truncated the texture".
+        //
+        // Both signals are required. A full buffer with zero unread input is an exact fit, not
+        // loss; and consuming a prefix of the input is normal on its own — ConvertDdx decompresses
+        // a multi-chunk stream by handing the whole remainder to each call — so either signal
+        // alone fires on healthy files.
+        var leftover = compressedData.Length - compressedLen;
+        if (decompressedLen >= decompressedData.Length && leftover > 0)
+        {
+            _currentOptions?.Diagnostics?.RecordTruncatedRead(
+                $"decompress buffer saturated at {decompressedData.Length} bytes, {leftover} compressed bytes left unread");
+        }
+
         bytesConsumed = compressedLen;
         if (decompressedLen < decompressedData.Length) Array.Resize(ref decompressedData, decompressedLen);
         return decompressedData;
@@ -350,6 +383,19 @@ public class DdxParser(bool verbose = false)
     private byte[] UnswizzleDxtTexture(byte[] src, int width, int height, uint format)
     {
         var swapEndian = _currentOptions == null || !_currentOptions.SkipEndianSwap;
-        return TextureUtilities.UnswizzleMortonDxt(src, width, height, format, swapEndian);
+        return TextureUtilities.UnswizzleMortonDxtAligned(src, width, height, format, swapEndian,
+            _currentOptions?.Diagnostics);
+    }
+
+    /// <summary>
+    ///     Plain logical-dims untile for heuristic call sites (memory-dump atlas dims, legacy
+    ///     linear mip walks) — dimensions there are guesses, not real GPU surfaces, so the
+    ///     aligned-extent semantics of <see cref="UnswizzleDxtTexture" /> do not apply.
+    /// </summary>
+    private byte[] UnswizzleDxtTextureHeuristic(byte[] src, int width, int height, uint format)
+    {
+        var swapEndian = _currentOptions == null || !_currentOptions.SkipEndianSwap;
+        return TextureUtilities.UnswizzleMortonDxt(src, width, height, format, swapEndian,
+            _currentOptions?.Diagnostics);
     }
 }

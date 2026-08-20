@@ -20,8 +20,13 @@ namespace DDXConv.Tests;
 public class DdsPostProcessorMergeTests
 {
     [Fact]
-    public void MergeNormalSpecularMapsFromMemory_ProducesDxt5FromBc5Input()
+    public void MergeNormalSpecularMapsFromMemory_NoSpecCompanion_ProducesDxt1NoAlpha()
     {
+        // Vanilla PC encodes "this material has no specular map" as a DXT1 normal map with
+        // no alpha channel (397/400 of the no-companion textures ship as DXT1 on PC), and
+        // the engine treats an alpha-less normal as specular-off. The old neutral-gray-128
+        // DXT5 fallback turned "no specular" into 50% gloss everywhere — the Doc Mitchell
+        // shiny-outfit bug.
         var bc5Bytes = BuildSyntheticBc5Normal(64, 64);
 
         var merged = DdsPostProcessor.MergeNormalSpecularMapsFromMemory(bc5Bytes, null);
@@ -32,11 +37,51 @@ public class DdsPostProcessorMergeTests
         Assert.Equal((byte)'S', merged[2]);
         Assert.Equal((byte)' ', merged[3]);
 
-        // FourCC at offset 84 must be DXT5 — the format vanilla FNV expects for normal maps.
+        // FourCC at offset 84 must be DXT1 — vanilla's "no specular" spelling.
         Assert.Equal((byte)'D', merged[84]);
         Assert.Equal((byte)'X', merged[85]);
         Assert.Equal((byte)'T', merged[86]);
-        Assert.Equal((byte)'5', merged[87]);
+        Assert.Equal((byte)'1', merged[87]);
+
+        // And the decoded image must be fully opaque — no gloss mask of any kind.
+        using var ms = new MemoryStream(merged);
+        using var image = new BCnEncoder.Decoder.BcDecoder().DecodeToImageRgba32(ms);
+        for (var y = 0; y < image.Height; y++)
+        {
+            for (var x = 0; x < image.Width; x++)
+            {
+                Assert.Equal(255, image[x, y].A);
+            }
+        }
+    }
+
+    [Fact]
+    public void MergeNormalSpecularMapsFromMemory_WritesSaturatedBlue_NotReconstructedZ()
+    {
+        // Vanilla FNV normal maps carry B ~ 255 regardless of slope (measured mean 240-255
+        // across the PC corpus); the game's shading is authored against that flattened Z. A
+        // sqrt(1-x^2-y^2) reconstruction sags B toward 128 on steep texels and renders as
+        // block-shaped dark patches along crevices.
+        var bc5Bytes = BuildSyntheticBc5Normal(64, 64);
+
+        var merged = DdsPostProcessor.MergeNormalSpecularMapsFromMemory(bc5Bytes, null);
+
+        using var ms = new MemoryStream(merged);
+        using var image = new BCnEncoder.Decoder.BcDecoder().DecodeToImageRgba32(ms);
+        double sum = 0;
+        var min = 255;
+        for (var y = 0; y < image.Height; y++)
+        {
+            for (var x = 0; x < image.Width; x++)
+            {
+                var b = image[x, y].B;
+                sum += b;
+                min = Math.Min(min, b);
+            }
+        }
+
+        Assert.True(sum / (image.Width * image.Height) > 250, "mean blue must stay saturated");
+        Assert.True(min > 230, $"no steep-slope Z sag allowed (min blue {min})");
     }
 
     [Fact]
@@ -60,7 +105,7 @@ public class DdsPostProcessorMergeTests
     {
         // BC4 spec map merged into the normal map's alpha channel — the FNV runtime treats
         // normal-map alpha as the specular/glossiness term. The merge has to accept BC4 input
-        // as well as no-spec (gray fallback).
+        // as well as no-spec (DXT1 no-alpha fallback).
         var bc5Bytes = BuildSyntheticBc5Normal(64, 64);
         var bc4Bytes = BuildSyntheticBc4Specular(64, 64);
 
@@ -70,27 +115,43 @@ public class DdsPostProcessorMergeTests
         Assert.Equal((byte)'X', merged[85]);
         Assert.Equal((byte)'T', merged[86]);
         Assert.Equal((byte)'5', merged[87]);
+
+        // The companion's red channel (200) must land in the alpha channel — FNV reads the
+        // per-texel specular mask from normal-map alpha.
+        using var ms = new MemoryStream(merged);
+        using var image = new BCnEncoder.Decoder.BcDecoder().DecodeToImageRgba32(ms);
+        double alphaSum = 0;
+        for (var y = 0; y < image.Height; y++)
+        {
+            for (var x = 0; x < image.Width; x++)
+            {
+                alphaSum += image[x, y].A;
+            }
+        }
+
+        var alphaMean = alphaSum / (image.Width * image.Height);
+        Assert.True(Math.Abs(alphaMean - 200) < 8, $"alpha must carry the spec mask (mean {alphaMean:F1}, expected ~200)");
     }
 
     [Fact]
-    public void MergeNormalSpecularMapsFromMemory_MismatchedSpecularDimensions_FallsBackToGray()
+    public void MergeNormalSpecularMapsFromMemory_MismatchedSpecularDimensions_FallsBackToDxt1NoAlpha()
     {
         // The specular companion is a DIFFERENT resolution than the normal map — the exact
         // situation that arises when the companion lookup lands on a sibling that isn't the
         // real `_s` map (e.g. barrierbulletholes_n 128x128 vs the 256x256 diffuse). The merge
-        // must discard the unusable spec and produce a valid DXT5 normal anyway, NOT throw and
-        // drop the normal to its un-loadable BC5/ATI2 original.
+        // must discard the unusable spec and produce a valid alpha-less DXT1 normal (the
+        // no-specular encoding), NOT throw and drop the normal to its un-loadable BC5/ATI2
+        // original.
         var bc5Bytes = BuildSyntheticBc5Normal(128, 128);
         var mismatchedSpec = BuildSyntheticBc4Specular(256, 256);
 
         var merged = DdsPostProcessor.MergeNormalSpecularMapsFromMemory(bc5Bytes, mismatchedSpec);
 
         Assert.True(merged.Length >= 88);
-        // Still a DXT5 normal map (gray specular packed into alpha), at the normal's size.
         Assert.Equal((byte)'D', merged[84]);
         Assert.Equal((byte)'X', merged[85]);
         Assert.Equal((byte)'T', merged[86]);
-        Assert.Equal((byte)'5', merged[87]);
+        Assert.Equal((byte)'1', merged[87]);
     }
 
     private static byte[] BuildSyntheticBc5Normal(int width, int height)

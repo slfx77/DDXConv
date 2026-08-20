@@ -5,6 +5,12 @@ namespace DDXConv;
 /// </summary>
 internal sealed class DdxHeaderWriter(bool verboseLogging)
 {
+    /// <summary>
+    ///     Per-conversion data-loss sink, assigned by <see cref="DdxParser" /> alongside its own
+    ///     options. Shares the parser's lifetime, and a parser is created per conversion.
+    /// </summary>
+    internal DecodeDiagnostics? Diagnostics { get; set; }
+
     internal D3DTextureInfo ParseD3DTextureHeaderWithDimensions(byte[] header, out ushort width, out ushort height)
     {
         // Xbox 360 D3D texture header structure (52 bytes starting at file offset 0x10):
@@ -119,6 +125,26 @@ internal sealed class DdxHeaderWriter(bool verboseLogging)
     }
 
     /// <summary>
+    ///     <see cref="WriteDdsFile" /> for auxiliary debug outputs (--atlas / --save-mips):
+    ///     identical bytes, but nothing recorded into <see cref="Diagnostics" /> — a debug
+    ///     atlas's padding is not the conversion's data loss, and folding it in made the
+    ///     per-file counters depend on which CLI flags were set.
+    /// </summary>
+    internal void WriteAuxDdsFile(string outputPath, D3DTextureInfo texture, byte[] mainData)
+    {
+        var saved = Diagnostics;
+        Diagnostics = null;
+        try
+        {
+            WriteDdsFile(outputPath, texture, mainData);
+        }
+        finally
+        {
+            Diagnostics = saved;
+        }
+    }
+
+    /// <summary>
     ///     Build a complete DDS file in memory (header + texture data).
     /// </summary>
     internal byte[] BuildDdsBytes(D3DTextureInfo texture, byte[] mainData)
@@ -140,15 +166,21 @@ internal sealed class DdxHeaderWriter(bool verboseLogging)
     /// <summary>
     ///     Write pixel data, zero-padding to the declared size if truncated.
     /// </summary>
-    private static void WriteDdsData(BinaryWriter writer, D3DTextureInfo texture, byte[] mainData)
+    private void WriteDdsData(BinaryWriter writer, D3DTextureInfo texture, byte[] mainData)
     {
         writer.Write(mainData);
 
-        // Pad truncated data to declared size so tools like GIMP can open the file
+        // Pad truncated data to declared size so tools like GIMP can open the file.
+        //
+        // This is the terminal zero-fill: whatever the decode failed to produce ends up here as a
+        // contiguous run of zero bytes at the end of mip 0, which is a run of pure-black
+        // compression blocks. It is the single largest source of black rectangles in converted
+        // textures, and until it was counted it was completely invisible.
         var expectedSize = CalculatePitchOrLinearSize(texture.Width, texture.Height, texture.ActualFormat);
         if (mainData.Length < expectedSize)
         {
             var padding = (int)(expectedSize - mainData.Length);
+            Diagnostics?.RecordPadding(padding);
             writer.Write(new byte[padding]);
         }
     }
