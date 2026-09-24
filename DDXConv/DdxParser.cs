@@ -128,6 +128,12 @@ public class DdxParser(bool verbose = false)
             var swapEndian = !options.SkipEndianSwap;
             textureData = TextureUtilities.UntileMacroBlocks(decompressed, width, height, blockSize, swapEndian,
                 texture.ActualFormat);
+
+            // The untile reads mip 0 from the first mip0Size bytes only (the hint above sizes the buffer, not
+            // the data), so everything after them is dropped: the stored levels of a 3XDR that carries a
+            // chain, or zero padding. The two diagnostic branches above crop by their own rules and are not
+            // counted.
+            options.Diagnostics?.RecordDroppedTrailing(decompressed.AsSpan(), (int)mip0Size, blockSize);
         }
 
         // Update texture info

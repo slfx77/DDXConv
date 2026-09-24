@@ -163,7 +163,8 @@ public static class DdxVerifyHarness
             w.WriteLine(
                 $"# DDXConv decode golden manifest — {results.Count} entries — format: "
                 + "relpath|sha256(dds)-or-__FAIL__|s=skippedCopies,u=unwrittenBlocks,"
-                + "d=duplicateWrites,p=paddedBytes,t=truncatedReads,n=surfaceBlocks"
+                + "d=duplicateWrites,p=paddedBytes,t=truncatedReads,n=surfaceBlocks,"
+                + "r=droppedTrailingBytes,k=droppedTrailingDataBlocks,a=fullAtlasFallbacks,f=filledMipTailBlocks"
                 + "[|m0=mip0Mae;mw=worstMipMae;mm=comparedMips;aw=worstAlphaMae, when a PC "
                 + "reference tree was attached — the baseline later verifies judge deltas against]");
             foreach (var kv in results.OrderBy(static k => k.Key, StringComparer.Ordinal))

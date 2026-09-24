@@ -463,6 +463,7 @@ internal sealed class DdxMipAtlasUnpacker(bool verboseLogging)
                     Array.Copy(atlasData, srcOffset, output, outputOffset, blockSize);
                     usedBlocks[by, bx] = true;
                     outputOffset += blockSize;
+                    p.Diagnostics?.RecordFilledMipTailBlock();
                 }
             }
 

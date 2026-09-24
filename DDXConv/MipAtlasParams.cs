@@ -10,4 +10,5 @@ internal readonly record struct MipAtlasParams(
     int MainWidth,
     int MainHeight,
     string? OutputPath = null,
-    bool SaveMips = false);
+    bool SaveMips = false,
+    DecodeDiagnostics? Diagnostics = null);

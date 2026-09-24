@@ -436,7 +436,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
         return UnpackMipAtlas(untiledAtlas, new MipAtlasParams(
             atlasWidth, atlasHeight, texture.ActualFormat,
             (int)texture.Width, (int)texture.Height,
-            outputPath, options?.SaveMips ?? false));
+            outputPath, options?.SaveMips ?? false, options?.Diagnostics));
     }
 
     /// <summary>
@@ -865,7 +865,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
 
         var mips = UnpackMipAtlas(processedAtlas, new MipAtlasParams(
             width, height, texture.ActualFormat,
-            width, height, outputPath, options?.SaveMips ?? false));
+            width, height, outputPath, options?.SaveMips ?? false, options?.Diagnostics));
         if (verboseLogging) Console.WriteLine($"Extracted {mips.Length} bytes of mips from atlas");
 
         var linearData = new byte[processedMain.Length + mips.Length];
@@ -983,6 +983,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
             texture.Width = (ushort)atlasWidth;
             texture.Height = (ushort)atlasHeight;
             texture.MipLevels = 1;
+            options?.Diagnostics?.RecordFullAtlasFallback();
         }
 
         if (options?.SaveMips == true && outputPath != null)
@@ -1135,7 +1136,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
 
             var mipsAlt = UnpackMipAtlas(chunk1UntiledAlt, new MipAtlasParams(
                 width, height, texture.ActualFormat,
-                width, height, outputPath, options?.SaveMips ?? false));
+                width, height, outputPath, options?.SaveMips ?? false, options?.Diagnostics));
             if (verboseLogging) Console.WriteLine($"Extracted {mipsAlt.Length} bytes of mips from chunk 1");
 
             linearData = new byte[chunk2UntiledAlt.Length + mipsAlt.Length];
@@ -1170,7 +1171,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
 
         var mips = UnpackMipAtlas(chunk1Untiled, new MipAtlasParams(
             squareSize, squareSize, texture.ActualFormat,
-            squareSize, squareSize, outputPath, options?.SaveMips ?? false));
+            squareSize, squareSize, outputPath, options?.SaveMips ?? false, options?.Diagnostics));
         if (verboseLogging) Console.WriteLine($"Extracted {mips.Length} bytes of mips from chunk 1");
 
         var linearData = new byte[chunk2Untiled.Length + mips.Length];
@@ -1223,7 +1224,7 @@ internal sealed class DdxChunkProcessor(bool verboseLogging)
 
             var mips = UnpackMipAtlas(untiledAtlas, new MipAtlasParams(
                 256, 192, texture.ActualFormat,
-                128, 128, outputPath, options?.SaveMips ?? false));
+                128, 128, outputPath, options?.SaveMips ?? false, options?.Diagnostics));
             if (verboseLogging) Console.WriteLine($"Extracted {mips.Length} bytes of mips from atlas");
 
             var linearData = new byte[untiledMain.Length + mips.Length];

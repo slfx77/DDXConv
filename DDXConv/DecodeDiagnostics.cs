@@ -44,7 +44,35 @@ public sealed class DecodeDiagnostics
     /// <summary>Reasons recorded alongside <see cref="TruncatedReads" />, for attribution.</summary>
     public List<string> TruncationReasons { get; } = [];
 
+    /// <summary>
+    ///     Decompressed 3XDR bytes after mip 0 that the conversion never untiles, zero padding included.
+    /// </summary>
+    public long DroppedTrailingBytes { get; private set; }
+
+    /// <summary>
+    ///     Blocks among <see cref="DroppedTrailingBytes" /> holding any non-zero byte: stored data the
+    ///     conversion drops, typically the levels after mip 0. Zero when the tail is only padding.
+    /// </summary>
+    public int DroppedTrailingDataBlocks { get; private set; }
+
+    /// <summary>
+    ///     Mip atlases that could not be split into levels and were emitted whole, at the atlas's own
+    ///     dimensions instead of the header's, as a single level.
+    /// </summary>
+    public int FullAtlasFallbacks { get; private set; }
+
+    /// <summary>
+    ///     Blocks copied into a short mip tail from atlas blocks no level claimed. Their placement is
+    ///     inferred to reach the declared chain length, not read from the atlas layout.
+    /// </summary>
+    public int FilledMipTailBlocks { get; private set; }
+
     /// <summary>True when this conversion satisfies the untile-is-a-permutation invariant.</summary>
+    /// <remarks>
+    ///     Deliberately limited to that invariant. <see cref="DroppedTrailingDataBlocks" />,
+    ///     <see cref="FullAtlasFallbacks" /> and <see cref="FilledMipTailBlocks" /> describe losses or
+    ///     inferences outside it and are read separately by a caller's own acceptance gate.
+    /// </remarks>
     public bool IsLossless =>
         SkippedBlockCopies == 0 && UnwrittenDestinationBlocks == 0 && DuplicateDestinationWrites == 0;
 
@@ -59,6 +87,38 @@ public sealed class DecodeDiagnostics
         {
             PaddedBytes += bytes;
         }
+    }
+
+    /// <summary>
+    ///     Records the bytes of <paramref name="decoded" /> after its first <paramref name="keptBytes" />, and
+    ///     how many <paramref name="blockSize" />-byte blocks among them are not all zero.
+    /// </summary>
+    public void RecordDroppedTrailing(ReadOnlySpan<byte> decoded, int keptBytes, int blockSize)
+    {
+        if (keptBytes < 0 || keptBytes >= decoded.Length || blockSize <= 0)
+        {
+            return;
+        }
+
+        var tail = decoded[keptBytes..];
+        DroppedTrailingBytes += tail.Length;
+        for (var offset = 0; offset < tail.Length; offset += blockSize)
+        {
+            if (tail.Slice(offset, Math.Min(blockSize, tail.Length - offset)).ContainsAnyExcept((byte)0))
+            {
+                DroppedTrailingDataBlocks++;
+            }
+        }
+    }
+
+    public void RecordFullAtlasFallback()
+    {
+        FullAtlasFallbacks++;
+    }
+
+    public void RecordFilledMipTailBlock()
+    {
+        FilledMipTailBlocks++;
     }
 
     public void RecordTruncatedRead(string reason)
@@ -95,6 +155,7 @@ public sealed class DecodeDiagnostics
     public string ToManifestField()
     {
         return $"s={SkippedBlockCopies},u={UnwrittenDestinationBlocks},d={DuplicateDestinationWrites}," +
-               $"p={PaddedBytes},t={TruncatedReads},n={SurfaceBlockTotal}";
+               $"p={PaddedBytes},t={TruncatedReads},n={SurfaceBlockTotal}," +
+               $"r={DroppedTrailingBytes},k={DroppedTrailingDataBlocks},a={FullAtlasFallbacks},f={FilledMipTailBlocks}";
     }
 }
