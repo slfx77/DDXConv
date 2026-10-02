@@ -3,31 +3,34 @@ using Xunit;
 namespace DDXConv.Tests.Support;
 
 /// <summary>
-///     Skip guard for tests that need the real game-asset corpus under the repo's
-///     <c>Sample/</c> directory. Sample is not in git, so CI runners never have it — before
-///     this guard existed those tests THREW on the missing directory, which meant the DDXConv
-///     CI step had never actually been green. Synthetic tests never use this.
+///     Skip guard for tests that need the extracted Xbox textures and PC references under
+///     <c>Sample/</c>. Other Sample content, retained output images and packed build archives
+///     do not supply these fixtures. Synthetic tests never use this.
 /// </summary>
 internal static class SampleAssetGuard
 {
-    private static readonly Lazy<string?> RepoRootLazy = new(FindRepoRoot);
+    private static readonly Lazy<string?> RepoRootLazy = new(() => FindRepoRoot(AppContext.BaseDirectory));
 
     internal static string? RepoRoot => RepoRootLazy.Value;
 
-    /// <summary>Skips the calling test when the Sample corpus is not present.</summary>
+    /// <summary>Skips when neither extracted texture corpus is present; incomplete corpora still fail their file assertions.</summary>
     internal static string RequireSampleRoot()
     {
         Assert.SkipWhen(RepoRoot is null,
-            "Sample/ directory with real game assets not found (not in git; expected only on dev machines)");
+            "Extracted Xbox .ddx textures and PC .dds references were not found under Sample/ " +
+            "(private fixtures; packed archives and retained output images are not sufficient)");
         return RepoRoot!;
     }
 
-    private static string? FindRepoRoot()
+    internal static string? FindRepoRoot(string startingDirectory)
     {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        var dir = new DirectoryInfo(startingDirectory);
         while (dir != null)
         {
-            if (Directory.Exists(Path.Combine(dir.FullName, "Sample")))
+            // Either side establishes a fixture corpus. Do not silently skip a partially
+            // extracted corpus: the tests retain their assertions for every required file.
+            if (HasFiles(Path.Combine(dir.FullName, "Sample", "Textures", "textures_360_final", "textures"), ".ddx") ||
+                HasFiles(Path.Combine(dir.FullName, "Sample", "Unpacked_Builds", "PC_Final_Unpacked", "Data", "textures"), ".dds"))
                 return dir.FullName;
 
             dir = dir.Parent;
@@ -35,4 +38,8 @@ internal static class SampleAssetGuard
 
         return null;
     }
+
+    private static bool HasFiles(string directory, string extension)
+        => Directory.Exists(directory) && Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories)
+            .Any(path => string.Equals(Path.GetExtension(path), extension, StringComparison.OrdinalIgnoreCase));
 }
